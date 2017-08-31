@@ -4,7 +4,7 @@
  * CURSO: SISTEMAS DIGITALES
  * FECHA: 31/08/2017
  * -DESCRIPCIÓN: Prende y apaga led verde
- * 				 N veces
+ * 		 N veces
  *
  * ***************************************/
 
