@@ -30,17 +30,17 @@ void config_pulsador_led(void){ //Configuramos puerto F
 }
 
 void main(void) {
-	config_pulsador_led();
-	uint32_t temp;
-	uint32_t n;
-	uint32_t N=8; //N=8 por descripcion del problema
-	while(1){//Ejecutar siempre
-		if(N!=0){//Si N es diferente de cero
-			GPIO_PORTF_DATA_R|=0x08;//Prendemos led verde
-			for(n=0;n<1000000;n++);//Retardo
-			GPIO_PORTF_DATA_R&=~0x08;//Prendemos led verde
-			for(n=0;n<1000000;n++);//Retardo
-			N=N-1;//Disminuimos N
-		}
-	} //fin de while
+    config_pulsador_led();
+    uint32_t i,j;
+    uint32_t N=8; //N=8 por descripcion del problema
+    while(1){//Ejecutar siempre
+
+        while ((GPIO_PORTF_DATA_R & 0x10)!=0);
+        while ((GPIO_PORTF_DATA_R & 0x10)==0);
+
+        for (i=0; i<2*N; i++) {
+            for (j=0; j<400000;j++);
+            GPIO_PORTF_DATA_R^= 0x08;
+        }
+    } //fin de while
 } // fin main
