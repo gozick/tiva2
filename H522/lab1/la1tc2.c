@@ -1,15 +1,12 @@
-
 /* **************************************
  * TÍTULO: Tarea de LAB1 - H522
  * AUTOR: PABLO DÍAZ
  * CURSO: SISTEMAS DIGITALES
  * FECHA: 03/09/2017
- * -DESCRIPCIÓN: Adjunta con tarea
+ * DESCRIPCIÓN: Adjunta con tarea
  * ***************************************/
-
 #include <stdint.h>
 #include "tm4c123gh6pm.h"
-
 void config_pulsador_led(void){ //Configuramos puerto F sw1 sw2 LEDS
 	unsigned long temp;
 	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOF; // Se habilita la señal de reloj del Puerto F
@@ -27,28 +24,22 @@ void config_pulsador_led(void){ //Configuramos puerto F sw1 sw2 LEDS
 	GPIO_PORTF_DR8R_R |= 0X0E; //Se activa salida de 8mA
 	GPIO_PORTF_DEN_R |= 0X1F; // Se habilitan las salidas digitales de los bits 0 al 4
 }
-
 void main(void) {
 	config_pulsador_led();//Configuramos SW1 SW2 leds
 	uint32_t i=0,j,p,estado,bandera=0;
 	uint32_t estados[8]={0,2,4,8,6,10,12,14};//La secuencia de colores
 	uint32_t almacenar[3]={2,0,4};//La secuencia preconfigurada
 	GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-
 	while(1){
 		if (i==8){//Si se pasa que se reinicie
 			i=0;
 		}
 		GPIO_PORTF_DATA_R=estados[i];
 		for (j=0;j<400000;j++);//retardo para led
-
 		while (bandera!=1){//bandera 1 nos indica que se tomo alguna accion
-
 			estado=GPIO_PORTF_DATA_R;
 			switch ((estado&0x11)){
-
 			case 0x00://Switch sw1y sw2 presionados
-
 				while ((GPIO_PORTF_DATA_R&0x11)==0){
 					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//Para que pueda detectar que otra tecla se aplastó
 					if ((GPIO_PORTF_DATA_R&0x10)==0) break;
@@ -61,27 +52,23 @@ void main(void) {
 					for (j=0;j<400000;j++);//retardo para led
 				}//mostrar todos los colores
 				p=0;//reiniciamos p
-
-
 				while (GPIO_PORTF_DATA_R&0x11!=0);//Mientras no se presione
 				while ((GPIO_PORTF_DATA_R&0x11)==0);//Mientras este presionado
 				bandera=1;
 				break;
 			case 0x01://Sw1 presionado
 				while ((GPIO_PORTF_DATA_R&0x10)==0){
-					if ((GPIO_PORTF_DATA_R&0x11)==0) break;
-					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//Mientras no se presione
+					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el					
+					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//case
 				}
-
 				i++;
 				bandera=1;
 				break;
 			case 0x10://sw2 presionado
 				while ((GPIO_PORTF_DATA_R&0x01)==0){
-					if ((GPIO_PORTF_DATA_R&0x11)==0) break;
-					if ((GPIO_PORTF_DATA_R&0x10)==0) break;		//Mientras no se presione
+					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el
+					if ((GPIO_PORTF_DATA_R&0x10)==0) break;//case
 				}
-
 				almacenar[p]=estados[i];
 				if (p==3){
 					p=0;
@@ -92,12 +79,8 @@ void main(void) {
 			default:
 				break;
 			}
-			//for (j=0;j<80000;j++);//retardo para siguiente isntruccion
 		}//sale de bandera
 		bandera=0;//reiniciamos bandera para la siguiente lectura
 		GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-
 	}//fin while
-
-
 } // fin main
