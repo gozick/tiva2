@@ -47,9 +47,9 @@ void main(void) {
 				while ((GPIO_PORTF_DATA_R&0x11)==0);
 				for(p=0;p<3;p++){
 					GPIO_PORTF_DATA_R=almacenar[p];
-					for (j=0;j<400000;j++);//retardo para led
+					for (j=0;j<800000;j++);//retardo para led
 					GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-					for (j=0;j<400000;j++);//retardo para led
+					for (j=0;j<800000;j++);//retardo para led
 				}//mostrar todos los colores
 				p=0;//reiniciamos p
 				while (GPIO_PORTF_DATA_R&0x11!=0);//Mientras no se presione
@@ -58,7 +58,7 @@ void main(void) {
 				break;
 			case 0x01://Sw1 presionado
 				while ((GPIO_PORTF_DATA_R&0x10)==0){
-					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el					
+					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el
 					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//case
 				}
 				i++;
