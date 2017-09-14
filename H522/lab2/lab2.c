@@ -82,12 +82,10 @@ void prenderLeds(int numero_led){//para poder prender leds necesitamos solo un n
 		GPIO_PORTB_DATA_R=(1<<4)|(1<<5);
 		break;
 	case 3: //LED 1, 2 Y 3
-		GPIO_PORTB_DATA_R=(1<<4)|(1<<5);
-		GPIO_PORTE_DATA_R=(1<<6);
+		GPIO_PORTB_DATA_R=(1<<4)|(1<<5)|(1<<6);
 		break;
 	case 4://LOS 4 LEDS
-		GPIO_PORTB_DATA_R=(1<<4)|(1<<5);
-		GPIO_PORTE_DATA_R=(1<<6)|(1<<7);
+		GPIO_PORTB_DATA_R=(1<<4)|(1<<5)|(1<<6)|(1<<7);
 	}
 }
 
@@ -98,6 +96,7 @@ void main(void) {
 	config_portB();//puerto B
 	config_portE();//puerto E
 	uint32_t i=0,j,p,estado,bandera=0,bandera1=0;
+	uint32_t almacenar[3]={1,0,1};//el arreglo
 
 	int numero_led=2;//Va a seguir el numero de led que prendio o apago
 
@@ -107,9 +106,9 @@ void main(void) {
 	while(1){
 
 		if (numero_led>4) numero_led=4;//Mantenemos en 4 prendidos si se pasa de 4
-
+		prenderLeds(numero_led);//prender los leds elegidos
 		while (bandera!=1){
-			estado=GPIO_PORTA_DATA_R;//estado de los puertos A
+			estado=GPIO_PORTA_DATA_R|GPIO_PORTE_DATA_R;//estado de los puertos A
 			switch (estado){
 
 			case 0x10://SW1 PA4 prendido
@@ -131,13 +130,14 @@ void main(void) {
 				}
 				bandera=1;// se ejecutó un caso
 				break;
-			case 0x08://SW2 PA3 presionado
+			case 0x08://SW2 PA3 presionado FUNCIONA
 				while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
 
 				if (numero_led!=0){//Mientras este algun led prendido norma
 					numero_led=numero_led-1;
+					prenderLeds(numero_led);//prendemos en el que se encuentra
 				}//si no hay prendidos no se hace nada
-				prenderLeds(numero_led);//prendemos en el que se encuentra
+
 				bandera=1;// se ejecutó un caso
 				break;
 			case 0x04://Sw3 PA2presionado
@@ -147,11 +147,11 @@ void main(void) {
 				p++;
 				bandera=1;// se ejecutó un caso
 				break;
-			case 0x20://Sw4 presionado
+			case 0x20://Sw4 presionado FUNCIONA
 				while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
 				if (numero_led<=4){//Si es de leds no puede pasar de 4
-					prenderLeds(numero_led);//prendemos en el que se encuentra
 					numero_led++;
+					prenderLeds(numero_led);//prendemos en el que se encuentra
 				}
 				bandera=1;// se ejecutó un caso
 				break;
@@ -165,59 +165,5 @@ void main(void) {
 
 
 		}
-
-
-		//		if (i==8){//Si se pasa que se reinicie
-		//			i=0;
-		//		}
-		//		GPIO_PORTF_DATA_R=estados[i];
-		//		for (j=0;j<400000;j++);//retardo para led
-		//		while (bandera!=1){//bandera 1 nos indica que se tomo alguna accion
-		//			estado=GPIO_PORTF_DATA_R;
-		//			switch ((estado&0x11)){
-		//			case 0x00://Switch sw1y sw2 presionados
-		//				while ((GPIO_PORTF_DATA_R&0x11)==0){
-		//					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//Para que pueda detectar que otra tecla se aplastó
-		//					if ((GPIO_PORTF_DATA_R&0x10)==0) break;
-		//				}//Mientras este presionado
-		//				while ((GPIO_PORTF_DATA_R&0x11)==0);
-		//				for(p=0;p<3;p++){
-		//					GPIO_PORTF_DATA_R=almacenar[p];
-		//					for (j=0;j<800000;j++);//retardo para led
-		//					GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-		//					for (j=0;j<800000;j++);//retardo para led
-		//				}//mostrar todos los colores
-		//				p=0;//reiniciamos p
-		//				while (GPIO_PORTF_DATA_R&0x11!=0);//Mientras no se presione
-		//				while ((GPIO_PORTF_DATA_R&0x11)==0);//Mientras este presionado
-		//				bandera=1;
-		//				break;
-		//			case 0x01://Sw1 presionado
-		//				while ((GPIO_PORTF_DATA_R&0x10)==0){
-		//					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el
-		//					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//case
-		//				}
-		//				i++;
-		//				bandera=1;
-		//				break;
-		//			case 0x10://sw2 presionado
-		//				while ((GPIO_PORTF_DATA_R&0x01)==0){
-		//					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el
-		//					if ((GPIO_PORTF_DATA_R&0x10)==0) break;//case
-		//				}
-		//				if (p==3){
-		//					p=0;
-		//				}
-		//				almacenar[p]=estados[i];
-		//
-		//				p++;
-		//				bandera=1;
-		//				break;
-		//			default:
-		//				break;
-		//			}
-		//		}//sale de bandera
-		//		bandera=0;//reiniciamos bandera para la siguiente lectura
-		//		GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
 	}//fin while
 } // fin main
