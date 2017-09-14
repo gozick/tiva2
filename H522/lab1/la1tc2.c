@@ -31,49 +31,71 @@ void config_pulsador_led(void){ //Configuramos puerto F sw1 sw2 LEDS
 void main(void) {
 	config_pulsador_led();//Configuramos SW1 SW2 leds
 	uint32_t i=0,j,p,estado,bandera=0;
-	uint32_t estados[7]={0,2,4,8,6,10,12,14};//La secuencia de colores
+	uint32_t estados[8]={0,2,4,8,6,10,12,14};//La secuencia de colores
 	uint32_t almacenar[3]={2,0,4};//La secuencia preconfigurada
 	GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
 
 	while(1){
-
+		if (i==8){//Si se pasa que se reinicie
+			i=0;
+		}
 		GPIO_PORTF_DATA_R=estados[i];
-		//for (j=0;j<400000;j++);//retardo para led
+		for (j=0;j<400000;j++);//retardo para led
+
 		while (bandera!=1){//bandera 1 nos indica que se tomo alguna accion
+
 			estado=GPIO_PORTF_DATA_R;
-			switch (!(estado&0x11)){
-			case 0x1:
-				almacenar[p]=estados[i];
-				p++;
+			switch ((estado&0x11)){
+
+			case 0x00://Switch sw1y sw2 presionados
+
+				while ((GPIO_PORTF_DATA_R&0x11)==0){
+					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//Para que pueda detectar que otra tecla se aplastó
+					if ((GPIO_PORTF_DATA_R&0x10)==0) break;
+				}//Mientras este presionado
+				while ((GPIO_PORTF_DATA_R&0x11)==0);
+				for(p=0;p<3;p++){
+					GPIO_PORTF_DATA_R=almacenar[p];
+					for (j=0;j<400000;j++);//retardo para led
+					GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
+					for (j=0;j<400000;j++);//retardo para led
+				}//mostrar todos los colores
+				p=0;//reiniciamos p
+
+
+				while (GPIO_PORTF_DATA_R&0x11!=0);//Mientras no se presione
+				while ((GPIO_PORTF_DATA_R&0x11)==0);//Mientras este presionado
 				bandera=1;
 				break;
-			case 0x10:
+			case 0x01://Sw1 presionado
+				while ((GPIO_PORTF_DATA_R&0x10)==0){
+					if ((GPIO_PORTF_DATA_R&0x11)==0) break;
+					if ((GPIO_PORTF_DATA_R&0x01)==0) break;//Mientras no se presione
+				}
 
 				i++;
 				bandera=1;
 				break;
-			case 0x11:
+			case 0x10://sw2 presionado
+				while ((GPIO_PORTF_DATA_R&0x01)==0){
+					if ((GPIO_PORTF_DATA_R&0x11)==0) break;
+					if ((GPIO_PORTF_DATA_R&0x10)==0) break;		//Mientras no se presione
+				}
 
-				for(p=0;p<3;p++){
-					GPIO_PORTF_DATA_R=almacenar[p];
-					//for (j=0;j<400000;j++);//retardo para led
-				}//mostrar todos los colores
-				p=0;//reiniciamos p
-				GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-				while (GPIO_PORTF_DATA_R&0x11!=0);//Mientras no se presione
+				almacenar[p]=estados[i];
+				if (p==3){
+					p=0;
+				}
+				p++;
 				bandera=1;
 				break;
 			default:
 				break;
 			}
+			//for (j=0;j<80000;j++);//retardo para siguiente isntruccion
 		}//sale de bandera
 		bandera=0;//reiniciamos bandera para la siguiente lectura
 		GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-		if (i==7){
-			i=0;
-		}
-		p=0;
-		j=0;
 
 	}//fin while
 
