@@ -111,8 +111,8 @@ void main(void) {
 
 			case 0x10://SW1 PA4 prendido
 				while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
-				if (p<3) break;
-				else{
+		//		if (p<=3) break;
+		//		else{
 					while(1){//Mientras que sw1 no se aplaste denuevo
 						if (i==3) i=0;//reiniciamos para que siga siendo for
 						for (j=0;j<400000;j++);//retardo
@@ -127,7 +127,7 @@ void main(void) {
 					}
 					numero_led=2;//volvemos a enviarlo como estaba
 					prenderLeds(numero_led);
-				}
+		//		}
 				bandera=1;// se ejecutó un caso
 				break;
 			case 0x08://SW2 PA3 presionado FUNCIONA
