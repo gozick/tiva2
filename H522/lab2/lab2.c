@@ -71,6 +71,10 @@ void config_portE(void){
 
 void prenderLeds(int numero_led){//para poder prender leds necesitamos solo un numero
 	switch (numero_led){
+	case 0:
+		GPIO_PORTB_DATA_R&=~0xFF;//apagamos todos los leds
+		GPIO_PORTE_DATA_R&=~0xFF;//apagamos todos los leds
+		break;
 	case 1://LED 1
 		GPIO_PORTB_DATA_R=(1<<4);
 		break;
@@ -96,10 +100,6 @@ void main(void) {
 	uint32_t i=0,j,p,estado,bandera=0,bandera1=0;
 
 	int numero_led=2;//Va a seguir el numero de led que prendio o apago
-
-	uint32_t estados[4]={0,0,0,0};//LD1/LD2/LD3/LD4
-
-	uint32_t almacenar[3]={1,0,1};//La secuencia preconfigurada
 
 	GPIO_PORTB_DATA_R&=~0xFF;//apagamos todos los leds
 	GPIO_PORTE_DATA_R&=~0xFF;//apagamos todos los leds
@@ -142,15 +142,16 @@ void main(void) {
 				break;
 			case 0x04://Sw3 PA2presionado
 				while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
-				if (p==3) p=0;//Si se pasó del arreglo que reemplace el primero
-				almacenar[p]=estados[numero_led-1];//Almacenar el estado actual
+				if (p>=3) p=0;//Si se pasó del arreglo que reemplace el primero
+				almacenar[p]=numero_led;//Almacenar el estado actual
 				p++;
 				bandera=1;// se ejecutó un caso
 				break;
 			case 0x20://Sw4 presionado
 				while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
-				if (numero_led<=4){
-					GPIO_PORTA_DATA_R=numero_led+1;
+				if (numero_led<=4){//Si es de leds no puede pasar de 4
+					prenderLeds(numero_led);//prendemos en el que se encuentra
+					numero_led++;
 				}
 				bandera=1;// se ejecutó un caso
 				break;
