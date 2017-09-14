@@ -88,15 +88,13 @@ void prenderLeds(int numero_led){//para poder prender leds necesitamos solo un n
 		GPIO_PORTB_DATA_R=(1<<4)|(1<<5)|(1<<6)|(1<<7);
 	}
 }
-
-
 void main(void) {
 	config_pulsador_led();//Configurar puerto F
 	config_switches();//puerto A
 	config_portB();//puerto B
 	config_portE();//puerto E
-	uint32_t i=0,j,p,estado,bandera=0,bandera1=0;
-	uint32_t almacenar[3]={1,0,1};//el arreglo
+	uint32_t i=0,j,p,estado,bandera=0;
+	uint32_t almacenar[3]={0,0,0};//el arreglo
 
 	int numero_led=2;//Va a seguir el numero de led que prendio o apago
 
@@ -116,17 +114,19 @@ void main(void) {
 				if (p<3) break;
 				else{
 					while(1){//Mientras que sw1 no se aplaste denuevo
+						if (i==3) i=0;//reiniciamos para que siga siendo for
 						for (j=0;j<400000;j++);//retardo
-						GPIO_PORTA_DATA_R=almacenar[p];//Prendemos los leds
-						GPIO_PORTE_DATA_R=almacenar[p];//necesarios
+						prenderLeds(almacenar[i]);//prender estado anterior
 						for (j=0;j<400000;j++);//retardo
-						GPIO_PORTB_DATA_R&=~0xFF;//apagamos todos los leds
-						GPIO_PORTE_DATA_R&=~0xFF;//apagamos todos los leds
-						if (GPIO_PORTA_DATA_R&0x10==1){//Si se aplasta sw1
-							while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
+						prenderLeds(0);//prender estado anterior
+						i++;
+						if ((GPIO_PORTA_DATA_R|GPIO_PORTE_DATA_R)==0x10){
+							while(GPIO_PORTA_DATA_R==0x10);//mientras este presionado
 							break;
 						}
 					}
+					numero_led=2;//volvemos a enviarlo como estaba
+					prenderLeds(numero_led);
 				}
 				bandera=1;// se ejecutó un caso
 				break;
@@ -145,7 +145,10 @@ void main(void) {
 				if (p>=3) p=0;//Si se pasó del arreglo que reemplace el primero
 				almacenar[p]=numero_led;//Almacenar el estado actual
 				p++;
+				GPIO_PORTB_DATA_R&=~0xFF;//apagamos todos los leds
 				bandera=1;// se ejecutó un caso
+				numero_led=2;
+				prenderLeds(numero_led);//Se vuelve al estado donde solo hay 2 leds prendidos
 				break;
 			case 0x20://Sw4 presionado FUNCIONA
 				while (GPIO_PORTA_DATA_R!=0);//Mientras este presionado algún switch
@@ -158,12 +161,7 @@ void main(void) {
 			default: //Otra opcion no hace nada
 				break;
 			}
-
 			bandera=0;//Reiniciamos bandera para siguiente decision
-
-			//		GPIO_PORTF_DATA_R&=~0x0E;//apagamos todos los leds
-
-
 		}
 	}//fin while
 } // fin main
