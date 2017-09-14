@@ -70,8 +70,8 @@ void main(void) {
 					if ((GPIO_PORTF_DATA_R&0x10)==0) break;//case
 				}
 				if (p==3){
-									p=0;
-								}
+					p=0;
+				}
 				almacenar[p]=estados[i];
 
 				p++;
