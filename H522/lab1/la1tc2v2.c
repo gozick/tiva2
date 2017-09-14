@@ -69,10 +69,11 @@ void main(void) {
 					if ((GPIO_PORTF_DATA_R&0x11)==0) break;//Para romper el
 					if ((GPIO_PORTF_DATA_R&0x10)==0) break;//case
 				}
-				almacenar[p]=estados[i];
 				if (p==3){
-					p=0;
-				}
+									p=0;
+								}
+				almacenar[p]=estados[i];
+
 				p++;
 				bandera=1;
 				break;
