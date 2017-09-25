@@ -103,9 +103,6 @@ retardo_led_2:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 sw1_presionado:
 	ldr r4,[r3,#DATA]
-	and r4,#0xE
-	and r4,#0x0
-	str r4,[r3,#DATA]
 	and r4, #0x10;PF4
 	cbz r4, sw1_soltado; si no es cero enviar a sw1 presionado
 	b sw1_presionado;bucle
@@ -127,7 +124,6 @@ prender_led_rojo:
 	mov r4,#0x0E
 	str r4,[r3,#DATA]
 	mov r1,#100
-	b retardo_led_11
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 retardo_led_11:
 	mov r2,#10000;10000 por cada 1 de r1
@@ -140,9 +136,10 @@ retardo_led_22:
 	cmp r1,#0
 	bne retardo_led_11
 	mov r4, #0x0
-	str r4,[r3,#DIR]
+	str r4,[r3,#DATA]
 	;cbz r1,sw1_presionado
-	b sw1_presionado
+	sub r6,#1
+	b j_arreglo
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 reiniciar_i:
 	mov r7,#0x0
