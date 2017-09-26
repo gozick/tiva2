@@ -1,10 +1,11 @@
-; Nombre del programa: led_on_off.asm
-; Semestre: 2015.1./actualizado en 2017.1
-; Descripción: Se lograr hacer parpadear un led
-; Módulo: LaunchPad TIVA
-; Autor: Ing. Freri Orihuela
-; Conexiones: Led AZUL en pin PF2
-;********************************************************************************
+;*****************************************************
+; Nombre del programa: DiazV_TC3.asm
+; Semestre: 2017.2
+; Descripción: Adjunta en el informe
+; Módulo: Tiva LaunchPad TM4C123GH6PM
+; Autor: Pablo Díaz
+; Conexiones: SW2 SW1 LEDS RGB
+;*****************************************************
 ; Desplazamientos (Offset) de cada registro
 DATA .equ 0x000003FC
 DIR .equ 0x00000400
@@ -15,16 +16,16 @@ DEN .equ 0x0000051C
 LOCK .equ 0x00000520
 CR .equ 0x00000524
 AMSEL .equ 0x40025528
+; Numero de elementos del arreglo
 ELEMENTOS .equ 4
-
-
-arreglo_espacio:
-	.space 4; solo necesitamos 4 variables
-	.text ; El programa debe estar en la sección de código
+.text ; El programa debe estar en la sección de código
+arreglo_espacio:	.bss ARREGLOS,40; solo necesitamos 4 variables
+arreglos .word ARREGLOS
 	.thumb ; Se programa con instrucciones THUMB y se
 	; usa sintaxis UAL
 	.global main ; Dirección de inicio la etiqueta main
 main:
+
 	ldr r2, SYSCTL_RCGC2;Prendemos señal del reloj
 	ldr r3, GPIO_PORTF_BASE; guardamos la base en puerto F
 	ldr r1, [r2]; leo el dato
@@ -56,30 +57,26 @@ main:
 	orr r0, r0, #0x00000011 ; activa resistencias de pull-up
 	str r0, [r3, #PUR]
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-establecer_arreglo:
-	ldr r7,arreglo; llamamos la palabra arreglo
-	mov r6, #1
+guardar_arreglos:
+	ldr r7,arreglos
+	mov r6,#1
 	str r6,[r7]
-	add r7,#1
-	mov r6, #3
-	str r6,[r7]
-	add r7,#1
-	mov r6, #5
-	str r6,[r7]
-	add r7,#1
-	mov r6, #7
-	str r6,[r7]
-	add r7,#1
+	mov r6,#3
+	str r6,[r7,#0x1]
+	mov r6,#5
+	str r6,[r7,#0x2]
+	mov r6,#7
+	str r6,[r7,#0x3]
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 sw2_presionado:
 	ldr r1,[r3,#DATA]
-	and r1,r1, #0x01;PF4
+	and r1, #0x01;PF4
 	cbz r1, sw2_soltado; si no es cero enviar a sw1 presionado
 	b sw2_presionado;bucle
 sw2_soltado:
 	ldr r1,[r3,#DATA]
 	and r1,r1, #0x01;PF4
-	cbNz r1, prender_led_azul; si no es cero enviar a sw1 presionado
+	cbnz r1, prender_led_azul; si no es cero enviar a sw1 presionado
 	b sw2_soltado;bucle
 
 prender_led_azul:
@@ -100,6 +97,8 @@ retardo_led_2:
 	cmp r1,#0
 	bne retardo_led_1
 	;cbz r1,sw1_presionado
+	ldr r7,arreglos; llamamos la palabra arreglo
+	mov r0,#4
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 sw1_presionado:
 	ldr r4,[r3,#DATA]
@@ -107,24 +106,27 @@ sw1_presionado:
 	cbz r4, sw1_soltado; si no es cero enviar a sw1 presionado
 	b sw1_presionado;bucle
 sw1_soltado:
+
 	ldr r4,[r3,#DATA]
 	and r4, #0x10;PF4
 	cbnz r4, j_arreglo; si no es cero enviar a sw1 presionado
 	b sw1_soltado;bucle
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 j_arreglo:
-	ldr r6,[r7]; j=Arreglo[i]
-	add r7,#1;siguiente registro de arreglo
-j_diferente_cero:
-	cbnz r6, prender_led_rojo
-	cbz r6, reiniciar_i
+	ldr r5,[r7]
+j_pregunta:
+	and r5,#0XFF
+	cmp r5,#0
+	bne prender_led_rojo
+	beq siguiente_i
+	nop
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 prender_led_rojo:
 	ldr r4,[r3,#DATA]
-	mov r4,#0x0E
+	mov r4,#0x02
 	str r4,[r3,#DATA]
 	mov r1,#100
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 retardo_led_11:
 	mov r2,#10000;10000 por cada 1 de r1
 retardo_led_22:
@@ -135,21 +137,38 @@ retardo_led_22:
 	sub r1,r1,#1
 	cmp r1,#0
 	bne retardo_led_11
+apagar_led_rojo:
 	mov r4, #0x0
 	str r4,[r3,#DATA]
 	;cbz r1,sw1_presionado
-	sub r6,#1
-	b j_arreglo
+	mov r1,#100
+retardo_led_111:
+	mov r2,#10000;10000 por cada 1 de r1
+retardo_led_222:
+	sub r2,r2,#0x1
+	;cbz r2,retardo_led_2
+	cmp r2,#0x0
+	bne retardo_led_222
+	sub r1,r1,#1
+	cmp r1,#0
+	bne retardo_led_111
+	subs r5,#1
+	b j_pregunta
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-reiniciar_i:
-	mov r7,#0x0
-	b sw1_presionado
+siguiente_i:
+	add r7,#1
+	subs r0,#1
+	cmp r0,#0
+	beq reiniciar_i
+	bne sw1_presionado
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-fin: b fin;
+reiniciar_i:
+	mov r0, #4
+	ldr r7,arreglos
+	b sw1_presionado
 ; Registros base
 GPIO_PORTE_BASE: .word 0x40024000
 GPIO_PORTF_BASE: .word 0x40025000
 SYSCTL_RCGC2: .word 0x400FE108
 KEYLOCK: .word 0x4c4f434b
-arreglo: .word arreglo_espacio
 	.end
