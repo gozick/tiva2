@@ -39,7 +39,6 @@ void txcar_uart_PC(uint32_t car){
 	while ((UART0_FR_R & UART_FR_TXFF)!=0); //Espera que esté disponible para transmitir
 	UART0_DR_R = car;
 }
-
 void txmens_uart_PC(uint8_t mens[]){
 	uint8_t letra;
 	uint8_t i=0;
@@ -51,7 +50,7 @@ void txmens_uart_PC(uint8_t mens[]){
 	}
 }
 /*********************FIN COMUNICACION CON PC*********************************/
-//-------------------------------------------------------------------------------
+
 /*********************PRENDER I2C1 PARA BH1750*********************************/
 void I2C1_BH1750(void){
 	SYSCTL_RCGCI2C_R |= SYSCTL_RCGCI2C_R1;			// habilita el reloj del I2C1
@@ -72,58 +71,73 @@ void I2C1_BH1750(void){
 /********************* FIN PRENDER I2C1    ************************************/
 
 /********************    TRANSMISION POR I2C  ************************************/
-uint16_t leer_I2C_BH1750(uint8_t direccion_esclavo, uint8_t registro){
-	uint8_t dato1,dato2,estado;
-	uint16_t medidaluz;
-	//I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x7;							// Condicion de inicio
-	do{
-
-		while(I2C1_MCS_R&0x00000001){}; // esperar I2C ready
-		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) +						// se escribe la direccion
-				(direccion_esclavo<<1);								// del esclavo y se pone como lectura
-		//ACK
-		I2C1_MDR_R = (I2C1_MDR_R & ~0xFF) + registro;				//se escribe la direccion del registro que se va a leer
-		I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x3;						// condicion de inicio
+//uint8_t leer_I2C_BH1750(uint8_t direccion_esclavo, uint8_t registro){
+//	uint8_t dato,estado;
+//	I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x7;							// Condicion de inicio
+//	do{
+//		while(I2C1_MCS_R&0x00000001){}; // esperar I2C ready
+//		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) +						// se escribe la direccion
+//					(direccion_esclavo<<1);							// del esclavo y se pone como lectura
+//		//ACK
+//		I2C1_MDR_R = (I2C1_MDR_R & ~0xFF) + registro;				//se escribe la direccion del registro que se va a leer
+//		I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x3;						// condicion de inicio
+//		do{
+//			estado= I2C1_MCS_R;
+//		}while(estado & 0x01 != 0); 								//Se espera que el bit busy se ponga en 0
+//	}while( (I2C1_MCS_R & 0x02) != 0);								// si hay error vuelve a realizar
+//	//todos desde el inicio, sino sigueasfasfasfasf
+//	do{
+//		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1) + 1; // se escribe la direccion del esclavo y se pone como lectura
+//		I2C1_MCS_R= (I2C1_MCS_R & ~0x1F)| 0x7;						//Condicion de parada
+//		do{
+//			estado= I2C1_MCS_R;
+//		}while(estado & 0x01 != 0); 					// se espera que el bit busy se ponga en 0
+//	}while( (I2C1_MCS_R & 0x02) != 0);					// si hay error vuelve a realizar todos desde el inicio, sino sigue
+//	dato = I2C1_MDR_R & 0xFF; 							// se lee la data del registro escogido
+//	//ACK
+//	//dato2 = I2C1_MDR_R & 0xFF;
+//	I2C1_MCS_R= (I2C1_MCS_R & ~0x1F)| 0x4;			// condicion de parada;
+//	//medidaluz=(dato1<<8)+dato2;
+//	return dato;
+//}// fin leer_I2C
+uint16_t leer_I2C_BH1750(uint8_t direccion_esclavo){
+	uint8_t datoH=1,datoL=0,estado=0;
+	uint8_t AckEsclavo=0;
+	I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x1;							// Bit RUN 1
+	do{																// MCS modo lectura
+		while(I2C1_MCS_R&0x00000001){}; 							// Esperar I2C
+		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) +						// Limpiamos registro
+					(direccion_esclavo<<1)+1;						// Direccion de esclavo +W/R=1
+		AckEsclavo=I2C1_MCS_R;										// Ack Esclavo Modo lectura
+		I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x7;						// Estado ERROR & BUSY
 		do{
 			estado= I2C1_MCS_R;
-		}while(estado & 0x01 != 0); 								//Se espera que el bit busy se ponga en 0
-	}while( (I2C1_MCS_R & 0x02) != 0);								// si hay error vuelve a realizar
-	//todos desde el inicio, sino sigue
-	do{
-		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1) + 1; // se escribe la direccion del esclavo y se pone como lectura
-		I2C1_MCS_R= (I2C1_MCS_R & ~0x1F)| 0x7;						//Condicion de parada
-		do{
-			estado= I2C1_MCS_R;
-		}while(estado & 0x01 != 0); 					// se espera que el bit busy se ponga en 0
-	}while( (I2C1_MCS_R & 0x02) != 0);					// si hay error vuelve a realizar todos desde el inicio, sino sigue
-	dato1 = I2C1_MDR_R & 0xFF; 							// se lee la data del registro escogido
-	//ACK
-	dato2 = I2C1_MDR_R & 0xFF;
-	//I2C1_MCS_R= (I2C1_MCS_R & ~0x1F)| 0x4;			// condicion de parada;
-	medidaluz=(dato1<<8)+dato2;
-	return medidaluz;
+		}while(estado & 0x01 != 0); 								// Hasta que no este BUSY
+	}while( (I2C1_MCS_R & 0x02) != 0);								// Si existe error reenvia denuevo
+	datoH = I2C1_MDR_R & 0xFF; 										// Leemos Hight Byte
+	I2C1_MCS_R|=(I2C1_MCS_R & ~0x1F)| 0x8;							// Generamos ACK del maestro
+	datoL= I2C1_MDR_R & 0xFF; 										// Leemos Low Byte
+	I2C1_MCS_R&=~0x8;												// Generamos ACK negativo
+	I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x4;							// BIT DE PARADA
+	return (datoH<<8)+datoL;										// Devolvemos valor medido
 }// fin leer_I2C
-
-void escribir_I2C_BH1750 (uint8_t direccion_esclavo , uint8_t registro , uint8_t valor){
-	char estado;
-	do{
-		//I2C1_MCS_R= (I2C1_MCS_R & ~0x1F)| 0x7;		// condicion de inicio
-		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1); // se escribe la direccion del esclavo y se pone como escritura
-		I2C1_MDR_R = (I2C1_MDR_R & ~0xFF) + registro;	//se escribe la direccion del registro que se va a escribir
-		I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x3;			// condicion de inicio
+void escribir_I2C_BH1750 (uint8_t direccion_esclavo ,uint8_t opecode){
+	char estado=0;													// Estado nos indica los bits
+																	// ERROR y BUSY del Master al enviar
+	uint8_t AckEsclavo=0;
+	do{																// MCS EN MODO WRITE
+		I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x1;						// BIT DE RUN
+		I2C1_MCS_R&=~0x1;											// En modo Write Borramos bit 0
+		I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1); // Direccion de esclavo con W/R=0
+		AckEsclavo=I2C1_MCS_R;										// Ack Esclavo Modo lectura
+		I2C1_MDR_R = (I2C1_MDR_R & ~0xFF) + opecode;				 // Enviamos el opcode
+		AckEsclavo=I2C1_MCS_R;										// Ack Esclavo Modo lectura
+		I2C1_MCS_R= (I2C1_MCS_R & ~0x17)| 0x4;						// BIT DE PARADA
 		do{
 			estado= I2C1_MCS_R;
-		}while((estado & 0x01) != 0); 					// se espera que el bit busy se ponga en 0
-	}while( (I2C1_MCS_R & 0x02) != 0);					// si hay error vuelve a realizar todos desde el inicio, sino sigue
-
-	do{
-		I2C1_MDR_R = (I2C1_MDR_R & ~0xFF) + valor;		//se escribe el valor deseado
-		I2C1_MCS_R= (I2C1_MCS_R & ~0x1F)| 0x5;			// condicion de parada
-		do{
-			estado= I2C1_MCS_R;
-		}while(estado & 0x01 != 0); 					// se espera que el bit busy se ponga en 0
-	}while( (I2C1_MCS_R & 0x02) != 0);					// si hay error vuelve a realizar todos desde el inicio, sino sigue
-}//fin escribir_I2C
+		}while((estado & 0x01) != 0); 								// Se queda aqui hasta que no este busy
+	}while( (I2C1_MCS_R & 0x02) != 0);								// Si existe error repetir el envio
+}//fin escribir_I2C_BH1750
 /******************** FIN TRANSMISION POR I2C  ************************************/
 
 /******************** CONVERSION DE DATOS ************************************/
@@ -146,41 +160,40 @@ void NumerotoString(uint16_t n){
 	return Datos;
 }
 /********************FIN CONVERSION DE DATOS **********************************/
+
 /********************          MAIN          **********************************/
 void main (void){
-	ConfiguraUART_PC(); 			// COMUNICACION UART CON PC
-	I2C1_BH1750(); 					//CONFIGURA EL I2C PA6YPA7
-	uint16_t luz;
-	int i,contador=0;							//Se usara para retardo
-	uint8_t direccion_esclavo=0b0100011;				//7 digitos
-	uint8_t registro=0b00010001;						//8 digitos
-	uint8_t power_on=0b00000001;						//prender el sensor
-
-	uint8_t lectura2[]="\n\r";								//Enter
-	uint8_t unidad_luz[]=" [ lx ]\n\r"	;				//Unidades del sensor de luz
-	uint8_t lectura[]="Lectura [";
-	uint8_t lectura3[]="] :";
-
-	while(1){											//Siempre ejecutandose
-		luz=leer_I2C_BH1750(direccion_esclavo, power_on);	//Escribimos el esclavo
-		luz=leer_I2C_BH1750(direccion_esclavo, registro);	//Escribimos el esclavo
-		for (i=0;i<400000;i++);
-		luz=luz/1.2;
+	ConfiguraUART_PC(); 								// COMUNICACION UART CON PC
+	I2C1_BH1750(); 										// CONFIGURA EL I2C PA6 CLOCK Y PA7 DATA
+	uint16_t luz=0;										// Esta variable almacena valor leido I2C
+	int i,contador=0;									// Se usara para retardo
+	uint8_t direccion_esclavo=0b0100011;				// 7 digitos
+	uint8_t power_on=0b00000001;						// Prender el sensor
+	uint8_t MeasurementCode=0b00010011;					// Mesaurement Command
+	uint8_t unidad_luz[]=" [ lx ]\n\r"	;				// Unidades del sensor de luz
+	uint8_t lectura[]="Lectura [";						// TEXTO
+	uint8_t lectura3[]="] :";							// TEXTO
+	while(1){												// Siempre ejecutandose
+		escribir_I2C_BH1750(direccion_esclavo, power_on);	// Prendemos el sistema
+		for (i=0;i<1000;i++);								// Retardo para siguiente lectura
+		escribir_I2C_BH1750(direccion_esclavo, MeasurementCode);	// Comando Measurement Command
+		for (i=0;i<100000;i++);								// Retardo entre escritura y lectura
+		luz=leer_I2C_BH1750(direccion_esclavo);				// Leemos Hight y Low Byte
+		luz=luz/1.2;										// Calculamos la real medicion
 		/////////////////////////////////////////////////////////////////////////
-		NumerotoString(luz);							//la variable datos es global
-		txmens_uart_PC(lectura);
-		txcar_uart_PC(contador+48);						//offset por ser ascii
-		txmens_uart_PC(lectura3);						//Lectura numero 3
-		txmens_uart_PC(Datos);
-		txmens_uart_PC(unidad_luz);						//Fin de todo el mensaje
-		Datos[0]=0;
-		Datos[1]=0;
+		NumerotoString(luz);								// Convierto luz a arreglo
+		txmens_uart_PC(lectura);							// TEXTO
+		txcar_uart_PC(contador+48);							// +48 o +0x30 por ser codigo ASCII
+		txmens_uart_PC(lectura3);							// TEXTO
+		txmens_uart_PC(Datos);								// Se envia datos con el arreglo
+		txmens_uart_PC(unidad_luz);							// TEXTO : Unidades de la medicion
+		Datos[0]=0;											// Se Borra valores dentro del
+		Datos[1]=0;											// Arreglo
 		Datos[2]=0;
 		Datos[3]=0;
 		Datos[4]=0;
 		/////////////////////////////////////////////////////////////////////////
-		contador++;
-		if (contador==10)contador=0;					//Solo secuendia de 0 a 9
+		contador++;											// PARA TEXTO
+		if (contador==10)contador=0;						// TEXTO : Contador
 	}
-}
-/********************      FIN  MAIN          **********************************/
+}/********************   FIN  MAIN     **********************************/
