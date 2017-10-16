@@ -51,6 +51,8 @@ void Configurar_TIMER1AYB_PWM(void)
 	GPIO_PORTB_DEN_R|=(1<<5);								// Activamos pin como digital
 
 	TIMER1_CTL_R|=TIMER_CTL_TBEN;						// Activamos TIMER1 B
+	
+	
 }
 void DetenerPWM_DERECHO(void){
 	TIMER1_TAILR_R = 0;									// Valor de tope
@@ -83,23 +85,40 @@ void retardo_ms (uint32_t milisegundos) {
 	NVIC_ST_CTRL_R |= (NVIC_ST_CTRL_ENABLE + NVIC_ST_CTRL_CLK_SRC); 				//Habilitamos Systick
 	while ((NVIC_ST_CTRL_R & NVIC_ST_CTRL_COUNT)==0);
 }
-void GirarDerecha(void){
-	retardo_ms(10);
-	
+void GirarDerecha(frecuencia,dutycycle,TiempoDeGiro){
+	retardo_ms(10);										// Retardo
+	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
+	OndaPWM_DERECHO(frecuencia,dutycycle);				// Movemos Motor derecho
+	retardo_ms(TiempoDeGiro);							// Cercano a 90°
+	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+}
+void GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro){
+	retardo_ms(10);										// Retardo
+	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+	OndaPWM_IZQUIERDO(frecuencia,dutycycle);			// Movemos Motor Izquierdo
+	retardo_ms(TiempoDeGiro);							// Cercano a 90°
+	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
+}
+void Avanzar(frecuencia,dutycycle,TiempoDeGiro){
+	retardo_ms(10);										// Retardo
+	OndaPWM_IZQUIERDO(frecuencia,dutycycle);			// Movemos Motor Izquierdo
+	OndaPWM_DERECHO(frecuencia,dutycycle);			// Movemos Motor Izquierdo
+	retardo_ms(TiempoDeGiro);							// Cercano a 90°
+	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
+	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
 }
 int main(void) {
 	Configurar_TIMER1AYB_PWM();							// Configuramos el PWM TIMER1 A Y B
-	retardo_ms(100);
+	retardo_ms(100);									// Retardo
 	int dutycycle=70;									// DutyCycle
+	int frecuencia=10;									// Frecuencia
+	int TiempoDeGiro=500;								// Tiempo usado para girar 90° en ms
 	while(1){
-		OndaPWM_DERECHO(10,dutycycle);
-		retardo_ms(400);
-		DetenerPWM_DERECHO();
-		retardo_ms(1400);
-		OndaPWM_IZQUIERDO(10,dutycycle);
-		retardo_ms(400);
-		DetenerPWM_IZQUIERDO();
-		retardo_ms(1400);
-
+		GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);
+		retardo_ms(1000);
+		GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);
+		retardo_ms(1000);
+		Avanzar(frecuencia,dutycycle,TiempoDeGiro);
+		retardo_ms(1000);
 	}
 }
