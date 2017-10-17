@@ -1,22 +1,28 @@
 /***************************************************************************/
-/*************** Proyecto: SENSOR DE LUZ                 *******************/
+/*************** Proyecto: ROBOT MAPEO DE LUZ            *******************/
 /***************************************************************************/
 /*************** Microcontrolador: TM4C123GH6PM ****************************/
 /*************** Tiva C Series TM4C123GH6PM LaunchPad **********************/
-/*************** Autor: Pablo Díaz *****************************************/
+/*************** Autor: Pablo Díaz | Jose **********************************/
 /*************** Fecha: Octubre2017 ****************************************/
-/*************** Enunciado: Se programa el sensor de presion    ************/
-/****************y su respectivo i2c el cual es i2c1 ***********************/
-/****************hyperterminal a 9600 8 N 1*********************************/
-/****************determinación de la altura           **********************/
+/*************** Descripción del proyecto adjunto con el    ****************/
+/*************** informe final                              ****************/
 /***************************************************************************/
-/*********************COMUNICACION CON PC************************************/
-/* UART FBRD
+
+/*
 9600	104	10
 19200	52	5.3333
 38400	26	2.666
 57600	17	23.1111
 115200	8	43.555
+PE4 RX EN TIVA | TX EN HC05
+PE5 TX EN TIVA | RX EN HC05
+VCC->3.3V
+GND->GND
+PE4-> TX EN HC05
+PE5-> RX EN HC05
+SOLO 4 PINES, CUANDO KEY ESTA ACTIVADO
+FUNCIONA PARA CONFIGURAR MEDIANTE COMANDOS AT
  */
 /* Descripción: PWM
  * El TIMER1 controla el avance hacia el frente, el TIMER3 controla el retroceso
@@ -30,12 +36,90 @@
 #include "tm4c123gh6pm.h"
 #include <math.h>
 
-#define NumeroIntentosMax 5				// Numero maximo de intentos al enviar
-int frecuencia =80;						// Frecuencia de la Onda PWM
-int dutycycle =50;						// DutyCycle empleado por los motores
-int TiempoDeGiro= 400;					// Tiempo empleado para girar motores 90 grados
-unsigned char Datos[5]; 				// 5 digitos para expresar la medida de luz
+#define NumeroIntentosMax 5							// Numero maximo de intentos al enviar
+int frecuencia =40;									// Frecuencia de la Onda PWM
+int dutycycle =50;									// DutyCycle empleado por los motores
+int TiempoDeGiro= 10;								// Tiempo empleado para girar motores 90 grados
+uint8_t direccion_esclavo=0b0100011;				// 7 digitos
+uint8_t power_on=0b00000001;						// Prender el sensor
+uint8_t MeasurementCode=0b00010000;					// Mesaurement Command
+unsigned char Datos[5]; 							// 5 digitos para expresar la medida de luz
+uint8_t unidad_luz[]=" [ lx ]\n\r"	;				// TEXTO Unidades del sensor de luz
+uint8_t lectura[]="Lectura [";						// TEXTO
+uint8_t lectura3[]="] :";							// TEXTO
 
+void ConfiguraUART_HC05(void){ //***************CONFIGURAR UART1********************//
+	unsigned long temp;
+	SYSCTL_RCGCUART_R |= (1<<5);							// Habilitamos UART1
+	temp = SYSCTL_RCGC1_R;
+	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOE;					// Habilitamos GPIOB
+	temp = SYSCTL_RCGC2_R;
+	UART5_CTL_R &= ~UART_CTL_UARTEN;						// Inhabilitamos el UART1
+	//Configuramos a 34800 8 N 1 la velocidad de comunicación
+	UART5_IBRD_R = (UART5_IBRD_R & ~UART_IBRD_DIVINT_M)|104; // IBRD =int(16,000,000/(16*115,200)) = int(8.68055)
+	UART5_FBRD_R = (UART5_FBRD_R & ~UART_FBRD_DIVFRAC_M)|10; // FBRD = round(0.68055 * 64)= 43.55
+	//UART5_LCRH_R = (UART5_LCRH_R & 0xFFFFFF00) | 0x70;// 8, N, 1, FIFOs habilitados
+	UART5_LCRH_R = ((UART5_LCRH_R & ~0x000000FF)|(UART_LCRH_WLEN_8)|(UART_LCRH_FEN));
+	UART5_CTL_R |= UART_CTL_UARTEN;							// Habilitamos el UART1
+	GPIO_PORTE_AMSEL_R &= ~(0x30);							// Desactivamos modo analógico en PB0 y PB1
+	GPIO_PORTE_PCTL_R = (GPIO_PORTE_PCTL_R & 0xFF00FFFF)|0x00110000; // Conectamos UART0 a PB0 y PB1
+	GPIO_PORTE_AFSEL_R |= 0x30;								// Activamos funciones alternas en PB0 y PB1
+	GPIO_PORTE_DEN_R |= 0x30;								// Activamos funciones digitales en PB0 y PB1
+}
+void txcar_uart_HC05(uint32_t car){ 			// Transimir un caracter por uart1
+	while ((UART5_FR_R & UART_FR_TXFF)!=0); 	// Espera que esté disponible para transmision
+	UART5_DR_R = car;							// Enviar caracter
+}
+uint8_t rxcar_uart_HC05(void){					// Recepcion de un caracter
+	uint8_t temp;
+	while ((UART5_FR_R & UART_FR_RXFE)!=0); 	// Se espera que llegue un dato
+	temp= UART5_DR_R&0xFF;						// Se toman solo 8 bits
+	return temp;								// Se retorna valor al ser llamada la funcion
+}
+void txmens_uart_HC05(uint8_t mens[]){			// Funcion para poder enviar cadena
+	uint8_t letra;
+	uint8_t i=0; 								// indice
+	letra= mens[i++];
+	while (letra != '\0'){						//Se envían todos los caracteres hasta el fin de cadena
+		txcar_uart_HC05(letra);
+		letra= mens[i++];						//siguiente indice
+	}
+}//*************FIN CONFIGURAR UART1********************//
+void ConfiguraUART_PC (void){//***************CONFIGURAR UART0********************//
+	unsigned long temp;
+	SYSCTL_RCGC1_R |= SYSCTL_RCGC1_UART0;		// Se activa el reloj del UART
+	temp = SYSCTL_RCGC1_R;						// Espera de unos ciclos de reloj
+	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOA;		// Se activa el reloj del puerto A PA0 (U0Rx) PA1( U0Tx)
+	temp = SYSCTL_RCGC2_R;						// Espera de unos ciclos de reloj
+	UART0_CTL_R &= ~ UART_CTL_UARTEN;			// Se desactiva el UART
+	UART0_IBRD_R = (UART0_IBRD_R & ~UART_IBRD_DIVINT_M)|104; // 16MHz/(16*9600) Parte entera
+	UART0_FBRD_R = (UART0_FBRD_R & ~UART_FBRD_DIVFRAC_M)|10; //Parte fraccionaria*64
+	UART0_LCRH_R = ((UART0_LCRH_R & ~0x000000FF)|(UART_LCRH_WLEN_8)|(UART_LCRH_FEN));
+	// Se configuran los bits de datos, 1 bit de parada, sin paridad y habilita el FIFO
+	UART0_CTL_R |= UART_CTL_UARTEN;				// Se habilita el UART
+	GPIO_PORTA_AFSEL_R |= 0x03;					// Se activan las funciones alternas de PA0 y
+	GPIO_PORTA_DEN_R |= 0x03;					// Habilitación PA0 y PA1
+}
+void txcar_uart_PC(uint32_t car){				// Enviar caracter
+	while ((UART0_FR_R & UART_FR_TXFF)!=0);		// Espera que esté disponible para
+	UART0_DR_R = car;
+}
+uint8_t rxcar_uart_PC(void){					// Recibir caracter
+	uint8_t temp;
+	while ((UART0_FR_R & UART_FR_RXFE)!=0);		// Se espera que llegue un dato
+	temp= UART0_DR_R&0xFF;						// Se toman solo 8 bits
+	return temp;
+}
+void txmens_uart_PC(uint8_t mens[]){			// Similar a UART1
+	uint8_t letra;
+	uint8_t i=0;
+	letra= mens[i++];
+	while (letra != '\0'){						//Se envían todos los caracteres hasta el fin de cadena
+		txcar_uart_PC(letra);
+
+		letra= mens[i++];
+	}
+}//***********FIN*CONFIGURAR UART0********************//
 void Configurar_TIMER1AYB_TIMER3AYB_PWM(void)
 {
 	//--------------------TIMER1 A------------------------//
@@ -192,18 +276,18 @@ void OndaPWM_IZQUIERDO_TIMER3(int frecuencia,int dutycycle){
 	TIMER3_TBPMR_R = (((160000/frecuencia)*dutycycle) >>16);
 }
 void GirarIzquierda(int frecuencia,int dutycycle,int TiempoDeGiro){
-	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
+	DetenerTodo();										// Detenemos cualquier movimiento
 	OndaPWM_DERECHO_TIMER1(frecuencia,dutycycle);		// Movemos Motor derecho
 	OndaPWM_IZQUIERDO_TIMER3(frecuencia, dutycycle);	// Retrocedemos Motor Izquierdo
 	retardo_ms(TiempoDeGiro);							// Cercano a 90°
-	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+	DetenerTodo();										// Detenemos cualquier movimiento
 }
 void GirarDerecha(int frecuencia,int dutycycle,int TiempoDeGiro){
-	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+	DetenerTodo();										// Detenemos cualquier movimiento
 	OndaPWM_IZQUIERDO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
 	OndaPWM_DERECHO_TIMER3(frecuencia, dutycycle);		// Retrocedemos Motor Derecho
 	retardo_ms(TiempoDeGiro);							// Cercano a 90°
-	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
+	DetenerTodo();										// Detenemos cualquier movimiento
 }
 void Avanzar(int frecuencia,int dutycycle,int TiempoDeGiro){
 	OndaPWM_IZQUIERDO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
@@ -226,32 +310,6 @@ void DetenerTodo(void){
 	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
 	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
 }
-void ConfiguraUART_PC(void){
-	SYSCTL_RCGC1_R |= SYSCTL_RCGC1_UART0;					// Habilitamos reloj para el UART0
-	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOA;					// Habilitamos reloj para GPIOA
-	UART0_CTL_R &= ~UART_CTL_UARTEN;						// Inhabilitamos el UART0
-	UART0_IBRD_R = (UART0_IBRD_R & 0xFFFF0000) | 104;		// Velocidad 9600bps (Fsysclk = 16MHz)
-	UART0_FBRD_R = (UART0_FBRD_R & 0xFFFFFFC0) | 11;		// Velocidad 9600bps (Fsysclk = 16MHz)
-	UART0_LCRH_R = (UART0_LCRH_R & 0xFFFFFF00) | 0x70;		// 8, N, 1, FIFOs habilitados
-	UART0_CTL_R |= UART_CTL_UARTEN;							// Habilitamos el UART0
-	GPIO_PORTA_AMSEL_R &= ~(0x03);							// Desactivamos modo analógico en PA0 y PA1
-	GPIO_PORTA_PCTL_R = (GPIO_PORTA_PCTL_R&0xFFFFFF00)|0x00000011;// Conectamos UART0 a PA0 y PA1
-	GPIO_PORTA_AFSEL_R |= 0x03;								// Activamos funciones alternas en PA0 y PA1
-	GPIO_PORTA_DEN_R |= 0x03;								// Activamos funciones digitales en PA0 y PA1
-}
-void txcar_uart_PC(uint32_t car){
-	while ((UART0_FR_R & UART_FR_TXFF)!=0); //Espera que esté disponible para transmitir
-	UART0_DR_R = car;						// Envia valor de la FIFO
-}
-void txmens_uart_PC(uint8_t mens[]){
-	uint8_t letra;
-	uint8_t i=0;
-	letra= mens[i++];
-	while (letra != '\0'){ 				// Mientras no sea el final de la cadena
-		txcar_uart_PC(letra);			// Enviar caracter
-		letra= mens[i++];				// guardado en arreglo
-	}
-}
 void I2C1_BH1750(void){
 	SYSCTL_RCGCI2C_R |= SYSCTL_RCGCI2C_R1;					// habilita el reloj del I2C1
 	while((SYSCTL_PRI2C_R & SYSCTL_PRI2C_R1)==0);
@@ -268,6 +326,21 @@ void I2C1_BH1750(void){
 	// se configura la velocidad MTPR = (System Clock/(2*(SCL_LP + SCL_HP)*SCL_CLK))-1;
 	I2C1_MCS_R &= ~0x10;									// Se pone el bit HS en 0, se descativa high speedmode
 }//fin I2C1
+uint32_t escribir_I2C_BH1750 (uint8_t direccion_esclavo ,uint8_t opecode){
+	/* Esta función los Measurement code = opecode
+	 * según datasheet de BH1750
+	 */
+	while(I2C1_MCS_R&I2C_MCS_BUSY){}; 								// Esperar a I2C libre
+	I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1);	// Direccion de esclavo con W/R=0
+	I2C1_MSA_R&=~0x1;												// Modo escritura
+	I2C1_MDR_R=opecode&0xFF;										// Enviamos opecode
+	I2C1_MCS_R =(0
+			|I2C_MCS_STOP											// Generar un stop
+			|I2C_MCS_START											// Generar Start/ Restart
+			|I2C_MCS_RUN);											// Prender modo Master
+	while(I2C1_MCS_R&I2C_MCS_BUSY){}; 								// Esperar a I2C libre
+	return (I2C1_MCS_R&(I2C_MCS_DATACK|I2C_MCS_ADRACK|I2C_MCS_ERROR));	// Retornar algun error
+}//fin escribir_I2C_BH1750
 uint16_t leer_I2C_BH1750(uint8_t direccion_esclavo){
 	/*
 	 * Esta función recibe dos bytes y retorna un numero
@@ -298,21 +371,7 @@ uint16_t leer_I2C_BH1750(uint8_t direccion_esclavo){
 	}while(((I2C1_MCS_R&(I2C_MCS_ADRACK|I2C_MCS_ERROR))!=0)&&(intento<=NumeroIntentosMax));//Mientras sea menor el intento
 	return (datoH<<8)+datoL;										// Devolvemos valor medido
 }// fin leer_I2C
-uint32_t escribir_I2C_BH1750 (uint8_t direccion_esclavo ,uint8_t opecode){
-	/* Esta función los Measurement code = opecode
-	 * según datasheet de BH1750
-	 */
-	while(I2C1_MCS_R&I2C_MCS_BUSY); 								// Esperar a I2C libre
-	I2C1_MSA_R =  (I2C1_MSA_R & ~0xFF) + (direccion_esclavo<<1);	// Direccion de esclavo con W/R=0
-	I2C1_MSA_R&=~0x1;												// Modo escritura
-	I2C1_MDR_R=opecode&0xFF;										// Enviamos opecode
-	I2C1_MCS_R =(0
-			|I2C_MCS_STOP											// Generar un stop
-			|I2C_MCS_START											// Generar Start/ Restart
-			|I2C_MCS_RUN);											// Prender modo Master
-	while(I2C1_MCS_R&I2C_MCS_BUSY); 								// Esperar a I2C libre
-	return (I2C1_MCS_R&(I2C_MCS_DATACK|I2C_MCS_ADRACK|I2C_MCS_ERROR));	// Retornar algun error
-}//fin escribir_I2C_BH1750
+
 void NumerotoString(uint16_t n){
 	/*
 	 * Esta función convierte un número a caracter ascii guardados en un arreglo
@@ -328,7 +387,7 @@ void NumerotoString(uint16_t n){
 	Datos[4] = n + 0x30;						// Unidades
 	return Datos;
 }
-void retardo_ms (uint32_t milisegundos) {
+void retardo_ms (uint32_t milisegundos){
 	/* Esta función genera un retardo exacto contado en milisegundos
 	 * solo basta ingresar y generará un retardo con error de +/- 1/16millones
 	 */
@@ -338,60 +397,72 @@ void retardo_ms (uint32_t milisegundos) {
 	NVIC_ST_CTRL_R |= (NVIC_ST_CTRL_ENABLE + NVIC_ST_CTRL_CLK_SRC); 				//Habilitamos Systick
 	while ((NVIC_ST_CTRL_R & NVIC_ST_CTRL_COUNT)==0);
 }
+uint16_t LeerDosTeclasBluetooth(){
+	/* Esta función detecta 2 teclas apretadas en codigo ASCII
+	 */
+	uint8_t PrimeraTecla=0,SegundaTecla=0;			// Teclas que almacenarán las letras
+	PrimeraTecla=rxcar_uart_HC05();					// Primera tecla que recibe
+	SegundaTecla=rxcar_uart_HC05();					// Segunda tecla que recibe
+	return (PrimeraTecla<<8)+SegundaTecla;			// Junto las teclas
+}
+void HacerLecturaLuzIx_BH1750(void)
+{
+	uint16_t luz=0;										// Esta variable almacena valor leido I2C
+	int contador=0;										// Se usará para retardo
+	luz=leer_I2C_BH1750(direccion_esclavo);				// Leemos Hight y Low Byte
+	luz=luz/1.2;										// Calculamos la real medicion
+	/////////////////////////////////////////////////////////////////////////
+	NumerotoString(luz);								// Convierto luz a arreglo
+	txmens_uart_HC05(lectura);							// TEXTO
+	txcar_uart_HC05(contador+48);							// +48 o +0x30 por ser codigo ASCII
+	txmens_uart_HC05(lectura3);							// TEXTO
+	txmens_uart_HC05(Datos);								// Se envia datos con el arreglo
+	txmens_uart_HC05(unidad_luz);							// TEXTO : Unidades de la medicion
+	Datos[0]=0;											// Se Borra valores dentro del
+	Datos[1]=0;											// Arreglo
+	Datos[2]=0;
+	Datos[3]=0;
+	Datos[4]=0;
+	/////////////////////////////////////////////////////////////////////////
+	contador++;											// PARA TEXTO
+	if (contador==10)contador=0;						// TEXTO : Contador
+}
 void main (void){
 
 	ConfiguraUART_PC(); 								// COMUNICACION UART CON PC
-	I2C1_BH1750(); 										// CONFIGURA EL I2C PA6 CLOCK Y PA7 DATA
 	Configurar_TIMER1AYB_TIMER3AYB_PWM();				// CONFIGURA ONDA PWM PARA LOS MOTORES
-
-	/*
- GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);
-	retardo_ms(1000);
-	DetenerTodo();
-	GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);
-	retardo_ms(1000);
-	DetenerTodo();
-	Avanzar(frecuencia,dutycycle,TiempoDeGiro);
-	retardo_ms(1000);
-	DetenerTodo();
-	retardo_ms(400);
-	DetenerTodo();
-	Retroceder(frecuencia,dutycycle,TiempoDeGiro);
-	retardo_ms(1000);
-	DetenerTodo();
-	retardo_ms(1000);
-	 */
-
-
-	uint16_t luz=0;										// Esta variable almacena valor leido I2C
-	int contador=0;									// Se usara para retardo
-	uint8_t direccion_esclavo=0b0100011;				// 7 digitos
-	uint8_t power_on=0b00000001;						// Prender el sensor
-	uint8_t MeasurementCode=0b00010000;					// Mesaurement Command
-	uint8_t unidad_luz[]=" [ lx ]\n\r"	;				// Unidades del sensor de luz
-	uint8_t lectura[]="Lectura [";						// TEXTO
-	uint8_t lectura3[]="] :";							// TEXTO
+	ConfiguraUART_PC();									// CONFIGURA LA COMUNICACION VIA USB-PC-UART0
+	ConfiguraUART_HC05();								// CONFIGURA LA COMUNICACION CON EL BLUETOOTH
+	I2C1_BH1750(); 										// CONFIGURA EL I2C PA6 CLOCK Y PA7 DATA
 	uint32_t error=0;
-	error=escribir_I2C_BH1750(direccion_esclavo, power_on);	// Prendemos el sistema
-	error=escribir_I2C_BH1750(direccion_esclavo, MeasurementCode);	// Prendemos el sistema
-	while(1){												// Siempre ejecutandose
+	uint16_t TeclasPresionadas;							// TeclasPresionadas son una primera tecla
+	// presionada junto con la segunda tecla
+	error=escribir_I2C_BH1750(direccion_esclavo, power_on);				// Prendemos el sistema
+	error=escribir_I2C_BH1750(direccion_esclavo, MeasurementCode);		// Ponemos el codigo para leer continuamente
 
-		luz=leer_I2C_BH1750(direccion_esclavo);				// Leemos Hight y Low Byte
-		luz=luz/1.2;										// Calculamos la real medicion
-		/////////////////////////////////////////////////////////////////////////
-		NumerotoString(luz);								// Convierto luz a arreglo
-		txmens_uart_PC(lectura);							// TEXTO
-		txcar_uart_PC(contador+48);							// +48 o +0x30 por ser codigo ASCII
-		txmens_uart_PC(lectura3);							// TEXTO
-		txmens_uart_PC(Datos);								// Se envia datos con el arreglo
-		txmens_uart_PC(unidad_luz);							// TEXTO : Unidades de la medicion
-		Datos[0]=0;											// Se Borra valores dentro del
-		Datos[1]=0;											// Arreglo
-		Datos[2]=0;
-		Datos[3]=0;
-		Datos[4]=0;
-		/////////////////////////////////////////////////////////////////////////
-		contador++;											// PARA TEXTO
-		if (contador==10)contador=0;						// TEXTO : Contador
+	while(1)
+	{
+		TeclasPresionadas=LeerDosTeclasBluetooth();			// Leemos las teclas presionadas
+		HacerLecturaLuzIx_BH1750();							// Realizamos lectura del sensor de Luz
+		switch (TeclasPresionadas){
+		case 0b0101011101010111:// Avanzar
+			Avanzar(frecuencia,dutycycle,TiempoDeGiro);		// Avanzar el robot
+			break;
+		case 'SS':// Retroceder
+			Retroceder(frecuencia,dutycycle,TiempoDeGiro);	// Retroceder el robot
+			break;
+		case 'AA':// Girar Izquierda
+			GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la izquierda
+			break;
+		case 'DD':// Girar Derecha
+			GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la derecha
+			break;
+		case 'AW':
+			break;
+		default:
+			DetenerTodo();									// Caso contrario detener todo
+			break;
+		}
 	}
+
 }/********************   FIN  MAIN     **********************************/
