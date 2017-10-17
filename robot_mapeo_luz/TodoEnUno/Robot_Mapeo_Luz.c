@@ -37,9 +37,10 @@ FUNCIONA PARA CONFIGURAR MEDIANTE COMANDOS AT
 #include <math.h>
 
 #define NumeroIntentosMax 5							// Numero maximo de intentos al enviar
-int frecuencia =40;									// Frecuencia de la Onda PWM
+int frecuencia =10;									// Frecuencia de la Onda PWM
 int dutycycle =50;									// DutyCycle empleado por los motores
-int TiempoDeGiro= 10;								// Tiempo empleado para girar motores 90 grados
+int TiempoDeGiro= 50
+		;								// Tiempo empleado para girar motores 90 grados
 uint8_t direccion_esclavo=0b0100011;				// 7 digitos
 uint8_t power_on=0b00000001;						// Prender el sensor
 uint8_t MeasurementCode=0b00010000;					// Mesaurement Command
@@ -397,14 +398,6 @@ void retardo_ms (uint32_t milisegundos){
 	NVIC_ST_CTRL_R |= (NVIC_ST_CTRL_ENABLE + NVIC_ST_CTRL_CLK_SRC); 				//Habilitamos Systick
 	while ((NVIC_ST_CTRL_R & NVIC_ST_CTRL_COUNT)==0);
 }
-uint16_t LeerDosTeclasBluetooth(){
-	/* Esta función detecta 2 teclas apretadas en codigo ASCII
-	 */
-	uint8_t PrimeraTecla=0,SegundaTecla=0;			// Teclas que almacenarán las letras
-	PrimeraTecla=rxcar_uart_HC05();					// Primera tecla que recibe
-	SegundaTecla=rxcar_uart_HC05();					// Segunda tecla que recibe
-	return (PrimeraTecla<<8)+SegundaTecla;			// Junto las teclas
-}
 void HacerLecturaLuzIx_BH1750(void)
 {
 	uint16_t luz=0;										// Esta variable almacena valor leido I2C
@@ -436,25 +429,32 @@ void main (void){
 	I2C1_BH1750(); 										// CONFIGURA EL I2C PA6 CLOCK Y PA7 DATA
 	uint32_t error=0;
 	uint16_t TeclasPresionadas;							// TeclasPresionadas son una primera tecla
+	uint8_t PrimeraTecla=0,SegundaTecla=0;			// Teclas que almacenarán las letras
 	// presionada junto con la segunda tecla
 	error=escribir_I2C_BH1750(direccion_esclavo, power_on);				// Prendemos el sistema
 	error=escribir_I2C_BH1750(direccion_esclavo, MeasurementCode);		// Ponemos el codigo para leer continuamente
 
 	while(1)
 	{
-		TeclasPresionadas=LeerDosTeclasBluetooth();			// Leemos las teclas presionadas
+		PrimeraTecla=rxcar_uart_HC05();					// Primera tecla que recibe
+		SegundaTecla=rxcar_uart_HC05();					// Segunda tecla que recibe
+		TeclasPresionadas=(PrimeraTecla<<8)+SegundaTecla;	// Recibimos Segunda Tecla
 		HacerLecturaLuzIx_BH1750();							// Realizamos lectura del sensor de Luz
 		switch (TeclasPresionadas){
-		case 0b0101011101010111:// Avanzar
+		case (0x7777):	// ww
+		case (0x5757):	// Avanzar WW or ww
 			Avanzar(frecuencia,dutycycle,TiempoDeGiro);		// Avanzar el robot
 			break;
-		case 'SS':// Retroceder
+		case (0x5353):	// SS
+		case (0x7373):	// Retroceder ss
 			Retroceder(frecuencia,dutycycle,TiempoDeGiro);	// Retroceder el robot
 			break;
-		case 'AA':// Girar Izquierda
+		case 0x4141:// Girar Izquierda AA
+		case 0x6161:
 			GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la izquierda
 			break;
-		case 'DD':// Girar Derecha
+		case 0x4444:
+		case 0x6464:// Girar Derecha dd
 			GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la derecha
 			break;
 		case 'AW':
