@@ -302,10 +302,10 @@ void Retroceder(int frecuencia,int dutycycle,int TiempoDeGiro){
 	 * la onda al inverso, es decir que IN2 ahora es IN1
 	 * y IN1 ahora es IN2
 	 */
-	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
-	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+	DetenerTodo();										// Detenemos ambos motores
 	OndaPWM_IZQUIERDO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
 	OndaPWM_DERECHO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	DetenerTodo();										// Detenemos ambos motores
 }
 void DetenerTodo(void){
 	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
