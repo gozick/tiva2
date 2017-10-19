@@ -8,7 +8,6 @@
 /*************** Descripción del proyecto adjunto con el    ****************/
 /*************** informe final                              ****************/
 /***************************************************************************/
-
 /*
 9600	104	10
 19200	52	5.3333
@@ -372,7 +371,6 @@ uint16_t leer_I2C_BH1750(uint8_t direccion_esclavo){
 	}while(((I2C1_MCS_R&(I2C_MCS_ADRACK|I2C_MCS_ERROR))!=0)&&(intento<=NumeroIntentosMax));//Mientras sea menor el intento
 	return (datoH<<8)+datoL;										// Devolvemos valor medido
 }// fin leer_I2C
-
 void NumerotoString(uint16_t n){
 	/*
 	 * Esta función convierte un número a caracter ascii guardados en un arreglo
@@ -429,7 +427,8 @@ void main (void){
 	I2C1_BH1750(); 										// CONFIGURA EL I2C PA6 CLOCK Y PA7 DATA
 	uint32_t error=0;
 	uint16_t TeclasPresionadas;							// TeclasPresionadas son una primera tecla
-	uint8_t PrimeraTecla=0,SegundaTecla=0;			// Teclas que almacenarán las letras
+	uint8_t PrimeraTecla=0,SegundaTecla=0;				// Teclas que almacenarán las letras
+	uint32_t tiempo=0;
 	// presionada junto con la segunda tecla
 	error=escribir_I2C_BH1750(direccion_esclavo, power_on);				// Prendemos el sistema
 	error=escribir_I2C_BH1750(direccion_esclavo, MeasurementCode);		// Ponemos el codigo para leer continuamente
@@ -439,30 +438,31 @@ void main (void){
 		PrimeraTecla=rxcar_uart_HC05();					// Primera tecla que recibe
 		SegundaTecla=rxcar_uart_HC05();					// Segunda tecla que recibe
 		TeclasPresionadas=(PrimeraTecla<<8)+SegundaTecla;	// Recibimos Segunda Tecla
-		HacerLecturaLuzIx_BH1750();							// Realizamos lectura del sensor de Luz
+
 		switch (TeclasPresionadas){
-		case (0x7777):	// ww
-		case (0x5757):	// Avanzar WW or ww
-			Avanzar(frecuencia,dutycycle,TiempoDeGiro);		// Avanzar el robot
+		case 0x45: 		//E
+		case 0x65: 		//e
+			HacerLecturaLuzIx_BH1750();								// Realizamos lectura del sensor de Luz
+		case (0x77):	// ww
+		case (0x57):	// Avanzar WW or ww
+			Avanzar(frecuencia,dutycycle,TiempoDeGiro);				// Avanzar el robot
+		break;
+		case (0x53):	// SS
+		case (0x73):	// Retroceder ss
+			Retroceder(frecuencia,dutycycle,TiempoDeGiro);			// Retroceder el robot
+		break;
+		case 0x41:		// Girar Izquierda AA
+		case 0x61:
+			GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);		// Girar hacia la izquierda
 			break;
-		case (0x5353):	// SS
-		case (0x7373):	// Retroceder ss
-			Retroceder(frecuencia,dutycycle,TiempoDeGiro);	// Retroceder el robot
+		case 0x44:
+		case 0x64:		// Girar Derecha dd
+			GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);		// Girar hacia la derecha
 			break;
-		case 0x4141:// Girar Izquierda AA
-		case 0x6161:
-			GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la izquierda
-			break;
-		case 0x4444:
-		case 0x6464:// Girar Derecha dd
-			GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la derecha
-			break;
-		case 'AW':
-			break;
+
 		default:
-			DetenerTodo();									// Caso contrario detener todo
+			DetenerTodo();											// Caso contrario detener all
 			break;
 		}
 	}
-
 }/********************   FIN  MAIN     **********************************/
