@@ -36,17 +36,32 @@ FUNCIONA PARA CONFIGURAR MEDIANTE COMANDOS AT
 #include <math.h>
 
 #define NumeroIntentosMax 5							// Numero maximo de intentos al enviar
+// ddistance = _16MHz_1clock *(double) MULTIPLIER *(double)ddistance;
+const double _16MHz_1clock = 62.5e-9; 				// Valor de un clock a 16 Mhz
+const int distanciaAvanzar=(3000);
+const int distanciaRetroceder=3000;
 int frecuencia =10;									// Frecuencia de la Onda PWM
 int dutycycle =50;									// DutyCycle empleado por los motores
-int TiempoDeGiro= 50
-		;								// Tiempo empleado para girar motores 90 grados
+int TiempoDeGiro= 50;								// Tiempo empleado para girar motores 90 grados
+//float distanciaAvanzar=(2.8/81);								// Distancia por unidad de tiempo TIMER
+//int distanciaRetroceder=1;							// Distancia por unidad de tiempo TIMER
+int distanciaDerecha=1;								// Distancia
+int distanciaIzquierda=1;							// Distancia
 uint8_t direccion_esclavo=0b0100011;				// 7 digitos
 uint8_t power_on=0b00000001;						// Prender el sensor
 uint8_t MeasurementCode=0b00010000;					// Mesaurement Command
 unsigned char Datos[5]; 							// 5 digitos para expresar la medida de luz
-uint8_t unidad_luz[]=" [ lx ]\n\r"	;				// TEXTO Unidades del sensor de luz
 uint8_t lectura[]="Lectura [";						// TEXTO
-uint8_t lectura3[]="] :";							// TEXTO
+uint8_t lectura2[]="] :";							// TEXTO
+uint8_t posx[]="[ x=";								// TEXTO
+uint8_t posx2[]=" ] ";								// TEXTO
+uint8_t posy[]="[ y=";								// TEXTO
+uint8_t posy2[]=" ] ";								// TEXTO
+uint8_t luz[]="[ luz="		;						// TEXTO
+uint8_t unidad_luz[]=" [ lx ]"	;					// TEXTO Unidades del sensor de luz
+uint8_t espacio[]="\n\r";							// TEXTO
+
+
 
 void ConfiguraUART_HC05(void){ //***************CONFIGURAR UART1********************//
 	unsigned long temp;
@@ -132,6 +147,7 @@ void Configurar_TIMER1AYB_TIMER3AYB_PWM(void)
 	TIMER1_CFG_R = (TIMER1_CFG_R & ~0x7) + 0x04;		// 4. Configuramos
 	TIMER1_TAMR_R = (TIMER1_TAMR_R &~0xFFF) + 0x50A;	// 5. Modo PWM
 	TIMER1_CTL_R |= TIMER_CTL_TAPWML;					// 6. PWM
+	TIMER1_CTL_R&=~((1<<2)|(1<<3));						// 7. Timer Capture Flanco de subida TIMERA
 	/* Las siguientes instrucciones se realizarian si se quiere una onda fija sin modificar
 	TIMER0_TAILR_R = (16000000/frecuencia - 1) & 0xFFFF; 			//Valor tope de contador
 	TIMER0_TAPR_R = ((16000000/frecuencia - 1) >> 16);
@@ -153,8 +169,9 @@ void Configurar_TIMER1AYB_TIMER3AYB_PWM(void)
 	//while((SYSCTL_PRTIMER_R&0x2)!=0x2);					// 2. Esperamos a real prendido
 	TIMER1_CTL_R&=~TIMER_CTL_TBEN;							// 3. Desactivamos TIMER A
 	TIMER1_CFG_R = (TIMER1_CFG_R & ~0x7) + 0x04;			// 4. Configuramos
-	TIMER1_TBMR_R = (TIMER1_TBMR_R &~0xFFF) + 0x50A;		// 5. Modo PWM
+	TIMER1_TBMR_R = (TIMER1_TBMR_R &~0xFFF) + 0x50A;		// 5. Modo PWM y interrupciones on
 	TIMER1_CTL_R |= TIMER_CTL_TBPWML;						// 6. PWM
+	TIMER1_CTL_R&=~((1<<11)|(1<<10));						// 7. Timer Capture Flanco de subida TIMERB
 
 	//SYSCTL_RCGC2_R|=0x2;									// Puerto B5 prendido
 	//while((SYSCTL_PRGPIO_R&0X2)!=0x2);					// Espera al reloj prendido
@@ -173,6 +190,7 @@ void Configurar_TIMER1AYB_TIMER3AYB_PWM(void)
 	TIMER3_CFG_R = (TIMER3_CFG_R & ~0x7) + 0x04;		// 4. Configuramos
 	TIMER3_TAMR_R = (TIMER3_TAMR_R &~0xFFF) + 0x50A;	// 5. Modo PWM
 	TIMER3_CTL_R |= TIMER_CTL_TAPWML;					// 6. PWM
+	TIMER3_CTL_R&=~((1<<3)|(1<<2));						// 7. Timer Capture Flanco de subida TIMERA
 	//SYSCTL_RCGC2_R|=0x2;								// Puerto B2 prendido
 	//while((SYSCTL_PRGPIO_R&0X2)!=0x2);					// Espera al reloj prendido
 	GPIO_PORTB_AFSEL_R|=(1<<2);							// Activamos funcion alternativa
@@ -190,7 +208,7 @@ void Configurar_TIMER1AYB_TIMER3AYB_PWM(void)
 	TIMER3_CFG_R = (TIMER3_CFG_R & ~0x7) + 0x04;			// 4. Configuramos
 	TIMER3_TBMR_R = (TIMER3_TBMR_R &~0xFFF) + 0x50A;		// 5. Modo PWM
 	TIMER3_CTL_R |= TIMER_CTL_TBPWML;						// 6. PWM
-
+	TIMER3_CTL_R&=~((1<<11)|(1<<10));						// 7. Timer Capture Flanco de subida TIMERB
 	//SYSCTL_RCGC2_R|=0x2;									// Puerto B5 prendido
 	//while((SYSCTL_PRGPIO_R&0X2)!=0x2);					// Espera al reloj prendido
 	GPIO_PORTB_AFSEL_R|=(1<<3);								// Activamos funcion alternativa
@@ -235,80 +253,106 @@ void DetenerPWM_IZQUIERDO(void){
 	TIMER3_TBMATCHR_R = 0;								// Valor de comparacion
 	TIMER3_TBPMR_R = 0;									// Del contador
 }
-void OndaPWM_DERECHO_TIMER1(int frecuencia, int dutycycle){
+uint32_t OndaPWM_DERECHO_TIMER1(int frecuencia, int dutycycle){
 	/* TIMER1
 	 * Esta función genera una onda PWM para prender el pin que enciende
 	 * el motor DERECHO pero lo hace segun el driver LN298
 	 */
-	TIMER1_TAILR_R = (16000000/frecuencia - 1) & 0xFFFF;		//Valor tope de contador
+	uint32_t tiempoEntrada,tiempoSalida;
+	tiempoEntrada=TIMER1_TAR_R;									// Valor del tiempo(contador) al entrar
+	TIMER1_TAILR_R = (16000000/frecuencia - 1) & 0xFFFF;		// Valor tope de contador
 	TIMER1_TAPR_R = ((16000000/frecuencia - 1) >> 16);
-	TIMER1_TAMATCHR_R = (160000/frecuencia)*dutycycle & 0xFFFF;	//Valor de comparación
+	TIMER1_TAMATCHR_R = (160000/frecuencia)*dutycycle & 0xFFFF;	// Valor de comparación
 	TIMER1_TAPMR_R = (((160000/frecuencia)*dutycycle) >>16);
+	tiempoSalida=TIMER1_TAR_R;									// Valor del contador al salir
+	return abs(tiempoSalida-tiempoEntrada);						// devolvemos valor demorado en la onda PWM
 }
-void OndaPWM_IZQUIERDO_TIMER1(int frecuencia,int dutycycle){
+uint32_t OndaPWM_IZQUIERDO_TIMER1(int frecuencia,int dutycycle){
 	/* TIMER1
 	 * Esta función genera una onda PWM para prender el pin que enciende
 	 * el motor IZQUIERDO pero lo hace segun el driver LN298
 	 */
+	uint32_t tiempoEntrada,tiempoSalida;
+	tiempoEntrada=TIMER1_TBR_R;									// Valor del tiempo(contador) al entrar
 	TIMER1_TBILR_R = (16000000/frecuencia - 1) & 0xFFFF;		//Valor tope de contador
 	TIMER1_TBPR_R = ((16000000/frecuencia - 1) >> 16);
 	TIMER1_TBMATCHR_R = (160000/frecuencia)*dutycycle & 0xFFFF;	//Valor de comparación
 	TIMER1_TBPMR_R = (((160000/frecuencia)*dutycycle) >>16);
+	tiempoSalida=TIMER1_TBR_R;									// Valor del contador al salir
+	return abs(tiempoSalida-tiempoEntrada);						// devolvemos valor demorado en la onda PWM
 }
-void OndaPWM_DERECHO_TIMER3(int frecuencia,int dutycycle){
+uint32_t OndaPWM_DERECHO_TIMER3(int frecuencia,int dutycycle){
 	/* TIMER3
 	 * Esta función genera una onda PWM para prender el pin que enciende
 	 * el motor DERECHO pero lo hace segun el driver LN298
 	 */
+	uint32_t tiempoEntrada,tiempoSalida;
+	tiempoEntrada=TIMER3_TAR_R;									// Valor del tiempo(contador) al entrar
 	TIMER3_TAILR_R = (16000000/frecuencia - 1) & 0xFFFF;		//Valor tope de contador
 	TIMER3_TAPR_R = ((16000000/frecuencia - 1) >> 16);
 	TIMER3_TAMATCHR_R = (160000/frecuencia)*dutycycle & 0xFFFF;	//Valor de comparación
 	TIMER3_TAPMR_R = (((160000/frecuencia)*dutycycle) >>16);
+	tiempoSalida=TIMER3_TAR_R;									// Valor del contador al salir
+	return abs(tiempoSalida-tiempoEntrada);						// devolvemos valor demorado en la onda PWM
 }
-void OndaPWM_IZQUIERDO_TIMER3(int frecuencia,int dutycycle){
+uint32_t OndaPWM_IZQUIERDO_TIMER3(int frecuencia,int dutycycle){
 	/* TIMER3
 	 * Esta función genera una onda PWM para prender el pin que enciende
 	 * el motor IZQUIERDO pero lo hace segun el driver LN298
 	 */
+	uint32_t tiempoEntrada,tiempoSalida;
+	tiempoEntrada=TIMER3_TBR_R;									// Valor del tiempo(contador) al entrar
 	TIMER3_TBILR_R = (16000000/frecuencia - 1) & 0xFFFF;		//Valor tope de contador
 	TIMER3_TBPR_R = ((16000000/frecuencia - 1) >> 16);
 	TIMER3_TBMATCHR_R = (160000/frecuencia)*dutycycle & 0xFFFF;	//Valor de comparación
 	TIMER3_TBPMR_R = (((160000/frecuencia)*dutycycle) >>16);
+	tiempoSalida=TIMER3_TBR_R;									// Valor del contador al salir
+	return abs(tiempoSalida-tiempoEntrada);						// devolvemos valor demorado en la onda PWM
 }
-void GirarIzquierda(int frecuencia,int dutycycle,int TiempoDeGiro){
-	DetenerTodo();										// Detenemos cualquier movimiento
-	OndaPWM_DERECHO_TIMER1(frecuencia,dutycycle);		// Movemos Motor derecho
-	OndaPWM_IZQUIERDO_TIMER3(frecuencia, dutycycle);	// Retrocedemos Motor Izquierdo
-	retardo_ms(TiempoDeGiro);							// Cercano a 90°
-	DetenerTodo();										// Detenemos cualquier movimiento
+uint32_t GirarIzquierda(int frecuencia,int dutycycle,int TiempoDeGiro){
+	uint32_t tiempo;
+	DetenerTodo();												// Detenemos cualquier movimiento
+	tiempo=OndaPWM_DERECHO_TIMER1(frecuencia,dutycycle);		// Movemos Motor derecho
+	tiempo=OndaPWM_IZQUIERDO_TIMER3(frecuencia, dutycycle);		// Retrocedemos Motor Izquierdo
+	//Se supone que debería ser el mismo tiempo
+	retardo_ms(TiempoDeGiro);									// Cercano a 90°
+	DetenerTodo();												// Detenemos cualquier movimiento
+	return tiempo;
 }
-void GirarDerecha(int frecuencia,int dutycycle,int TiempoDeGiro){
-	DetenerTodo();										// Detenemos cualquier movimiento
-	OndaPWM_IZQUIERDO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
-	OndaPWM_DERECHO_TIMER3(frecuencia, dutycycle);		// Retrocedemos Motor Derecho
-	retardo_ms(TiempoDeGiro);							// Cercano a 90°
-	DetenerTodo();										// Detenemos cualquier movimiento
+uint32_t GirarDerecha(int frecuencia,int dutycycle,int TiempoDeGiro){
+	uint32_t tiempo;
+	DetenerTodo();												// Detenemos cualquier movimiento
+	tiempo=OndaPWM_IZQUIERDO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	tiempo=OndaPWM_DERECHO_TIMER3(frecuencia, dutycycle);		// Retrocedemos Motor Derecho
+	retardo_ms(TiempoDeGiro);									// Cercano a 90°
+	DetenerTodo();												// Detenemos cualquier movimiento
+	return tiempo;
 }
-void Avanzar(int frecuencia,int dutycycle,int TiempoDeGiro){
-	OndaPWM_IZQUIERDO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
-	OndaPWM_DERECHO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
-	retardo_ms(TiempoDeGiro);							// Cercano a 90°
-	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
-	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+uint32_t Avanzar(int frecuencia,int dutycycle,int TiempoDeGiro){
+	uint32_t tiempo;
+	tiempo=OndaPWM_IZQUIERDO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	tiempo=OndaPWM_DERECHO_TIMER1(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	retardo_ms(TiempoDeGiro);									// Cercano a 90°
+	DetenerTodo();
+	return tiempo;
 }
-void Retroceder(int frecuencia,int dutycycle,int TiempoDeGiro){
+uint32_t Retroceder(int frecuencia,int dutycycle,int TiempoDeGiro){
 	/* Esta función hacer que retroceda generando
 	 * la onda al inverso, es decir que IN2 ahora es IN1
 	 * y IN1 ahora es IN2
 	 */
-	DetenerTodo();										// Detenemos ambos motores
-	OndaPWM_IZQUIERDO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
-	OndaPWM_DERECHO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
-	DetenerTodo();										// Detenemos ambos motores
+	uint32_t tiempo;
+	DetenerTodo();												// Detenemos ambos motores
+	tiempo=OndaPWM_IZQUIERDO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	tiempo=OndaPWM_DERECHO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	retardo_ms(TiempoDeGiro);
+	DetenerTodo();												// Detenemos ambos motores
+	return tiempo;
 }
-void DetenerTodo(void){
+uint32_t DetenerTodo(void){
 	DetenerPWM_IZQUIERDO();								// Detenemos Motor Izquierdo
 	DetenerPWM_DERECHO();								// Detenemos Motor Derecho
+	return 0;											// No se mueve no hay desplazamiento en los ejes
 }
 void I2C1_BH1750(void){
 	SYSCTL_RCGCI2C_R |= SYSCTL_RCGCI2C_R1;					// habilita el reloj del I2C1
@@ -378,8 +422,8 @@ void NumerotoString(uint16_t n){
 	Datos[0] = n/10000 + 0x30; 					// Decenas de miles
 	n = n%10000; 								// n ahora esta entre 0 y 9999
 	Datos[1] = n/1000 + 0x30; 					// Miles
-	n = n%1000;									// n ahora esta entre 0 y 999
 	Datos[2] = n/100 + 0x30; 					// Centenas
+	n = n%1000;									// n ahora esta entre 0 y 999
 	n = n%100;									// n ahora esta entre 0 y 99
 	Datos[3] = n/10 + 0x30; 					// Decenas
 	n = n%10; 									// n ahora esta entre 0 y 9
@@ -406,14 +450,14 @@ void HacerLecturaLuzIx_BH1750(void)
 	NumerotoString(luz);								// Convierto luz a arreglo
 	txmens_uart_HC05(lectura);							// TEXTO
 	txcar_uart_HC05(contador+48);							// +48 o +0x30 por ser codigo ASCII
-	txmens_uart_HC05(lectura3);							// TEXTO
+	txmens_uart_HC05(lectura2);							// TEXTO
 	txmens_uart_HC05(Datos);								// Se envia datos con el arreglo
 	txmens_uart_HC05(unidad_luz);							// TEXTO : Unidades de la medicion
-	Datos[0]=0;											// Se Borra valores dentro del
-	Datos[1]=0;											// Arreglo
-	Datos[2]=0;
-	Datos[3]=0;
-	Datos[4]=0;
+	//Datos[0]=0;											// Se Borra valores dentro del
+	//Datos[1]=0;											// Arreglo
+	//Datos[2]=0;
+	//Datos[3]=0;
+	//Datos[4]=0;
 	/////////////////////////////////////////////////////////////////////////
 	contador++;											// PARA TEXTO
 	if (contador==10)contador=0;						// TEXTO : Contador
@@ -429,40 +473,73 @@ void main (void){
 	uint16_t TeclasPresionadas;							// TeclasPresionadas son una primera tecla
 	uint8_t PrimeraTecla=0,SegundaTecla=0;				// Teclas que almacenarán las letras
 	uint32_t tiempo=0;
+	long int relx=0;
+	long int rely=0;
+	uint32_t contador=48;
+	int banderaLuz=0;
 	// presionada junto con la segunda tecla
 	error=escribir_I2C_BH1750(direccion_esclavo, power_on);				// Prendemos el sistema
 	error=escribir_I2C_BH1750(direccion_esclavo, MeasurementCode);		// Ponemos el codigo para leer continuamente
 
 	while(1)
 	{
-		PrimeraTecla=rxcar_uart_HC05();					// Primera tecla que recibe
-		SegundaTecla=rxcar_uart_HC05();					// Segunda tecla que recibe
-		TeclasPresionadas=(PrimeraTecla<<8)+SegundaTecla;	// Recibimos Segunda Tecla
+		PrimeraTecla=rxcar_uart_HC05();						// Primera tecla que recibe
+		//SegundaTecla=rxcar_uart_HC05();						// Segunda tecla que recibe
+		TeclasPresionadas=PrimeraTecla;	// Recibimos Segunda Tecla
 
 		switch (TeclasPresionadas){
 		case 0x45: 		//E
 		case 0x65: 		//e
-			HacerLecturaLuzIx_BH1750();								// Realizamos lectura del sensor de Luz
+			banderaLuz=0;											// Detener mediciones de luz
+			break;
+		case 0x71:		//q
+		case 0x51:		//Q
+			banderaLuz=1;											// Empezar mediciones de luz
+			break;
 		case (0x77):	// ww
 		case (0x57):	// Avanzar WW or ww
-			Avanzar(frecuencia,dutycycle,TiempoDeGiro);				// Avanzar el robot
+		tiempo=Avanzar(frecuencia,dutycycle,TiempoDeGiro);			// Avanzar el robot
+		rely=rely+tiempo*distanciaAvanzar*_16MHz_1clock;			// DistanciaAvanzar es la distancia que corre por unidad de tiempo
 		break;
 		case (0x53):	// SS
 		case (0x73):	// Retroceder ss
-			Retroceder(frecuencia,dutycycle,TiempoDeGiro);			// Retroceder el robot
+		tiempo=Retroceder(frecuencia,dutycycle,TiempoDeGiro);		// Retroceder el robot
+		rely=rely-tiempo*distanciaRetroceder*_16MHz_1clock;							// DistanciaAvanzar es la distancia que corre por unidad de tiempo
 		break;
 		case 0x41:		// Girar Izquierda AA
 		case 0x61:
-			GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);		// Girar hacia la izquierda
+			tiempo=GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la izquierda
+			// Gira sobre su propio eje
 			break;
 		case 0x44:
 		case 0x64:		// Girar Derecha dd
-			GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);		// Girar hacia la derecha
+			tiempo=GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);		// Girar hacia la derecha
+			//
 			break;
-
 		default:
-			DetenerTodo();											// Caso contrario detener all
+			tiempo=DetenerTodo();										// Caso contrario detener all
 			break;
-		}
-	}
+		}// fin switch
+		//================= MOSTRAR DATA ========================
+		//txmens_uart_HC05();//mensajes
+		//txcar_uart_HC05();//caracteres
+		if (relx<=0) relx=0;
+		if (rely<=0) rely=0;
+		txmens_uart_HC05(lectura);										// TEXTO Lectura [
+		txcar_uart_HC05(contador);										// caracter
+		txmens_uart_HC05(lectura2);										// ]
+		txmens_uart_HC05(posx);											// TEXTO [ x=
+		NumerotoString(relx);											// conversion
+		txmens_uart_HC05(Datos);										// relx
+		txmens_uart_HC05(posx2);										// ]
+		txmens_uart_HC05(posy);											// TEXTO [ y=
+		NumerotoString(rely);											// conversion
+		txmens_uart_HC05(Datos);										// rely
+		txmens_uart_HC05(posy2);										// ]
+		if (banderaLuz==1) HacerLecturaLuzIx_BH1750();						// Solo si se activó la bandera
+		if (contador>=155) contador=48;									// Controla el numero de serie
+		else contador++;												// Sino aumenta
+		txmens_uart_HC05(espacio);										// \n\r
+		//================= MOSTRAR DATA ========================
+	}//fin while 1
 }/********************   FIN  MAIN     **********************************/
