@@ -422,13 +422,12 @@ void NumerotoString(uint16_t n){
 	Datos[0] = n/10000 + 0x30; 					// Decenas de miles
 	n = n%10000; 								// n ahora esta entre 0 y 9999
 	Datos[1] = n/1000 + 0x30; 					// Miles
-	Datos[2] = n/100 + 0x30; 					// Centenas
 	n = n%1000;									// n ahora esta entre 0 y 999
+	Datos[2] = n/100 + 0x30; 					// Centenas
 	n = n%100;									// n ahora esta entre 0 y 99
 	Datos[3] = n/10 + 0x30; 					// Decenas
 	n = n%10; 									// n ahora esta entre 0 y 9
 	Datos[4] = n + 0x30;						// Unidades
-	return Datos;
 }
 void retardo_ms (uint32_t milisegundos){
 	/* Esta función genera un retardo exacto contado en milisegundos
