@@ -24,7 +24,6 @@ uint8_t msg5_2[]=" (";
 uint8_t msg5_3[]=",";
 uint8_t msg5_4[]=") CORRECTAMENTE INGRESADA \r\n";
 uint8_t msg6[]=" NUMERO DE POSICIONES INSUFICIENTES PARA EJECUTAR EL CORTE\n\r";
-
 uint8_t msg7[]="PROCESO DE CORTE INICIADO, CODIGO G: \n\r";
 uint8_t msg8[]=" M03 \n\r";
 uint8_t msg9[]=" M00 \n\r";
@@ -37,6 +36,7 @@ uint8_t msg12_2[]=" G01 Z1\n\r";
 uint8_t msg13[]="N";
 uint8_t fin[]="PROCESO DE CORTE COMPLETADO CON EXITO\n\r";
 
+uint32_t arregloX[20],arregloY[20];
 uint32_t contadorCorte=1;
 uint32_t banderaX=0,banderaY=0;
 uint32_t cantMaxPosic=20;
@@ -76,6 +76,7 @@ uint8_t rxcar_uart_PC(void){					// Recibir caracter
 			if (contadorCorte<=2)
 			{
 				txmens_uart_PC(msg6);				// Insuficiente
+				main();
 			}else{
 				GPIO_PORTF_DATA_R=0x2;
 				break;
@@ -165,7 +166,7 @@ int recibirNumero(void)
 }
 int main (void)
 {
-	uint32_t arregloX[20],arregloY[20];
+
 	ConfiguraUART_PC();
 
 	Config_SW_LEDS_PUERTOF();
@@ -243,7 +244,7 @@ int main (void)
 
 				contadorCorte++;		// Siguiente posicion
 			}
-			
+
 		}
 
 		banderaCorte=0;
