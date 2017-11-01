@@ -28,7 +28,7 @@ uint8_t msg6[]=" NUMERO DE POSICIONES INSUFICIENTES PARA EJECUTAR EL CORTE\n\r";
 uint8_t msg7[]="PROCESO DE CORTE INICIADO, CODIGO G: \n\r";
 uint8_t msg8[]=" M03 \n\r";
 uint8_t msg9[]=" M00 \n\r";
-uint8_t msg11_1[]=" G00 X";
+uint8_t msg11_1[]="G00 X";
 uint8_t msg11_2[]=" Y";
 uint8_t msg11_3[]="\n\r";
 uint8_t msg11_4[]=" G01 X";
@@ -42,7 +42,8 @@ uint32_t banderaX=0,banderaY=0;
 uint32_t cantMaxPosic=20;
 int numeroX=0,numeroY=0;
 uint32_t m=0;
-uint32_t arregloX[20],arregloY[20];
+float calculadora=0;
+uint32_t banderaCorte=0;
 
 void ConfiguraUART_PC(void){//***************CONFIGURAR UART0********************//
 	unsigned long temp;
@@ -65,11 +66,13 @@ void txcar_uart_PC(uint32_t car){				// Enviar caracter
 }
 uint8_t rxcar_uart_PC(void){					// Recibir caracter
 	uint8_t temp;
-
+	banderaCorte=0;
 	while ((UART0_FR_R & UART_FR_RXFE)!=0){// Se espera que llegue un dato
 		if ((GPIO_PORTF_DATA_R&0x1)!=0x1){
 			while((GPIO_PORTF_DATA_R&0x1)!=0x1);
-			while((GPIO_PORTF_DATA_R&0x1)==0x1);
+			//while((GPIO_PORTF_DATA_R&0x1)==0x1);
+			banderaCorte=1;
+			temp=0;
 			if (contadorCorte<=2)
 			{
 				txmens_uart_PC(msg6);				// Insuficiente
@@ -142,7 +145,7 @@ int recibirNumero(void)
 	uint32_t caracterRecibido;
 	uint32_t contador=0;
 	uint32_t numero=0;
-	uint8_t msg[]="\n\rSE HA INGRESADO UN NUMERO! \n \r";
+	uint8_t msg[]="\n\rSE HA INGRESADO DATOS. REVISANDO DATOS... \n \r";
 	do{
 		caracterRecibido=rxcar_uart_PC();
 		if ((caracterRecibido==13)&&(caracterRecibido=='\r'))
@@ -151,20 +154,23 @@ int recibirNumero(void)
 			break;
 		}else
 		{
+
 			caracterRecibido-=0x30;						// Codigo ASCII
 			numero=numero*10+caracterRecibido;// Algoritmo
 			contador++;
 		}
 
-	}while(1);
+	}while(banderaCorte==0);
 	return numero;
 }
 int main (void)
 {
+	uint32_t arregloX[20],arregloY[20];
 	ConfiguraUART_PC();
 
 	Config_SW_LEDS_PUERTOF();
 	contadorCorte=1;
+	banderaCorte=0;
 	while (1)
 	{
 
@@ -182,7 +188,7 @@ int main (void)
 			txmens_uart_PC(Datos);
 			txmens_uart_PC(msg2_2);					// Texto termina msg2
 
-			while (banderaX==0||banderaY==0)
+			while ((banderaX==0||banderaY==0)&&banderaCorte==0)
 			{
 				//	COORDENADA X
 				numeroX=recibirNumero();				// Recibimos numero
@@ -191,13 +197,14 @@ int main (void)
 					txmens_uart_PC(msg3_1);				// Numero X entre 0 y 100
 					NumerotoString(numeroX);
 					txmens_uart_PC(Datos);
-					txmens_uart_PC(msg3_2);
+
 					banderaX=1;
 					//	COORDENADA Y
 
 				}else{
 					txmens_uart_PC(msg4_1);				// Cordenada incorrecta
 				}
+				txmens_uart_PC(msg3_2);
 				numeroY=recibirNumero();			// Recibimos numero
 				if ((numeroY>=0)&&(numeroY<=120))
 				{
@@ -209,26 +216,32 @@ int main (void)
 			}
 			banderaX=0;									// Reiniciamos bandera
 			banderaY=0;
-			// Guardamos en arreglos las posiciones X e Y
 
-			arregloX[contadorCorte-1]=numeroX;
-			arregloY[contadorCorte-1]=numeroY;
+			if (banderaCorte==0) {
+				// Guardamos en arreglos las posiciones X e Y
+
+				arregloX[contadorCorte-1]=numeroX;
+				arregloY[contadorCorte-1]=numeroY;
 
 
-			txmens_uart_PC(msg5_1);						// Posicion correctamente
-			NumerotoString(contadorCorte);
-			txmens_uart_PC(Datos);
-			txmens_uart_PC(msg5_2);
-			NumerotoString(numeroX);
-			txmens_uart_PC(Datos);
-			txmens_uart_PC(msg5_3);
-			NumerotoString(numeroY);
-			txmens_uart_PC(Datos);
-			txmens_uart_PC(msg5_4);
-			contadorCorte++;							// Siguiente posicion
-			retardo_ms(2000);
-		}while(1);
+				txmens_uart_PC(msg5_1);						// Posicion correctamente
+				NumerotoString(contadorCorte);
+				txmens_uart_PC(Datos);
+				txmens_uart_PC(msg5_2);
+				NumerotoString(numeroX);
+				txmens_uart_PC(Datos);
+				txmens_uart_PC(msg5_3);
+				NumerotoString(numeroY);
+				txmens_uart_PC(Datos);
+				txmens_uart_PC(msg5_4);
+				retardo_ms(2000);
 
+				contadorCorte++;		// Siguiente posicion
+			}
+
+		}while(banderaCorte==0);
+
+		banderaCorte=0;
 		txmens_uart_PC(msg7);
 		//Empieza proceso de corte
 		retardo_ms(10000);
@@ -265,7 +278,7 @@ int main (void)
 		retardo_ms(1000);
 		//////////////////INICIO DEL CORTE//////////////////
 
-		for (m=3;m<=contadorCorte;m++)
+		for (m=3;m<=contadorCorte+1;m++)
 		{
 			txmens_uart_PC(msg13);						//N
 			NumerotoString(m);
@@ -281,13 +294,16 @@ int main (void)
 			txmens_uart_PC(Datos);
 
 			txmens_uart_PC(msg11_3);					// ENTER
+			for (calculadora=0;calculadora<round(sqrt(pow(arregloX[m-3],2)+
+					pow(arregloY[m-3],2)));calculadora++)
+			{
+				retardo_ms(1000);
+			}
 
-			retardo_ms(1000*round(sqrt(pow(arregloX[m-3],2)+
-					pow(arregloY[m-3],2))));
 		}
 
 		txmens_uart_PC(msg13);						//N
-		NumerotoString(m++);
+		NumerotoString(m);
 		txmens_uart_PC(Datos);
 
 		txmens_uart_PC(msg12_2);
@@ -295,18 +311,22 @@ int main (void)
 		retardo_ms(1000);
 
 		//N
-		NumerotoString(m++);
+		txmens_uart_PC(msg13);						//N
+		NumerotoString(m+1);
 		txmens_uart_PC(Datos);
 
 		txmens_uart_PC(msg9);	//PRENULTIMO
 
+		retardo_ms(1000);
 
-		m=0;					// LLEVAMOS AL INICIO DE COORDENADAS
-
-		NumerotoString(m);
+		txmens_uart_PC(msg13);						//N
+		NumerotoString(m+2);
 		txmens_uart_PC(Datos);
 		txmens_uart_PC(msg9);	//PRENULTIMO
 
+		retardo_ms(1000);
+		
+		txmens_uart_PC(msg13);						//N
 		txmens_uart_PC(msg11_1);					// G00 X
 		NumerotoString(00);
 		txmens_uart_PC(Datos);
@@ -314,15 +334,18 @@ int main (void)
 		NumerotoString(00);
 		txmens_uart_PC(Datos);
 		txmens_uart_PC(msg11_3);					// ENTER
-
+		
+		retardo_ms(1000);
+		
 		txmens_uart_PC(fin);						// TERMINADO
 
-
+		m=0;					// LLEVAMOS AL INICIO DE COORDENADAS
 		contadorCorte=1;
 		banderaX=0;
 		banderaY=0;
 		cantMaxPosic=20;
 		numeroX=0;
 		numeroY=0;
+		banderaCorte=0;
 	}
 }
