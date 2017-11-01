@@ -180,18 +180,23 @@ int main (void)
 		while ((GPIO_PORTF_DATA_R&0x10)!=0X0);		// Mientras este presionado SW1
 
 		GPIO_PORTF_DATA_R=0x8;					// Prender led verde
-		do
+		while(banderaCorte==0)
 		{
 
-			txmens_uart_PC(msg2_1);					// Texto INTRODUZCA POS
-			NumerotoString(contadorCorte);
-			txmens_uart_PC(Datos);
-			txmens_uart_PC(msg2_2);					// Texto termina msg2
+
 
 			while ((banderaX==0||banderaY==0)&&banderaCorte==0)
 			{
+
+				txmens_uart_PC(msg2_1);					// Texto INTRODUZCA POS
+				NumerotoString(contadorCorte);
+				txmens_uart_PC(Datos);
+				txmens_uart_PC(msg2_2);					// Texto termina msg2
+
+
 				//	COORDENADA X
 				numeroX=recibirNumero();				// Recibimos numero
+				if (banderaCorte!=0) break;
 				if ((numeroX>=0)&&(numeroX<=100))
 				{
 					txmens_uart_PC(msg3_1);				// Numero X entre 0 y 100
@@ -238,8 +243,8 @@ int main (void)
 
 				contadorCorte++;		// Siguiente posicion
 			}
-
-		}while(banderaCorte==0);
+			
+		}
 
 		banderaCorte=0;
 		txmens_uart_PC(msg7);
@@ -325,7 +330,7 @@ int main (void)
 		txmens_uart_PC(msg9);	//PRENULTIMO
 
 		retardo_ms(1000);
-		
+
 		txmens_uart_PC(msg13);						//N
 		txmens_uart_PC(msg11_1);					// G00 X
 		NumerotoString(00);
@@ -334,9 +339,9 @@ int main (void)
 		NumerotoString(00);
 		txmens_uart_PC(Datos);
 		txmens_uart_PC(msg11_3);					// ENTER
-		
+
 		retardo_ms(1000);
-		
+
 		txmens_uart_PC(fin);						// TERMINADO
 
 		m=0;					// LLEVAMOS AL INICIO DE COORDENADAS
