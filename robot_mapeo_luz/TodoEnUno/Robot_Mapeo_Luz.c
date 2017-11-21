@@ -342,11 +342,12 @@ uint32_t Retroceder(int frecuencia,int dutycycle,int TiempoDeGiro){
 	 * y IN1 ahora es IN2
 	 */
 	uint32_t tiempo;
-	DetenerTodo();												// Detenemos ambos motores
-	tiempo=OndaPWM_IZQUIERDO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
-	tiempo=OndaPWM_DERECHO_TIMER3(frecuencia,dutycycle);		// Movemos Motor Izquierdo
+	//DetenerTodo();												// Detenemos ambos motores
+	tiempo=OndaPWM_IZQUIERDO_TIMER3(frecuencia, dutycycle);		// Movemos Motor Izquierdo
+	OndaPWM_DERECHO_TIMER3(frecuencia, dutycycle);		// Movemos Motor Izquierdo
 	retardo_ms(TiempoDeGiro);
-	DetenerTodo();												// Detenemos ambos motores
+	DetenerTodo();
+	//DetenerTodo();												// Detenemos ambos motores
 	return tiempo;
 }
 uint32_t DetenerTodo(void){
@@ -474,6 +475,7 @@ void main (void){
 	uint32_t tiempo=0;
 	long int relx=0;
 	long int rely=0;
+	long int angulo=0;
 	uint32_t contador=48;
 	int banderaLuz=0;
 	// presionada junto con la segunda tecla
@@ -498,22 +500,25 @@ void main (void){
 		case (0x77):	// ww
 		case (0x57):	// Avanzar WW or ww
 		tiempo=Avanzar(frecuencia,dutycycle,TiempoDeGiro);			// Avanzar el robot
-		rely=rely+tiempo*distanciaAvanzar*_16MHz_1clock;			// DistanciaAvanzar es la distancia que corre por unidad de tiempo
+		relx=relx+tiempo*distanciaAvanzar*_16MHz_1clock*cos(angulo);// DistanciaAvanzar es la distancia que corre por unidad de tiempo
+		rely=rely+tiempo*distanciaAvanzar*_16MHz_1clock*sin(angulo);// Los 2 ejes
 		break;
 		case (0x53):	// SS
 		case (0x73):	// Retroceder ss
 		tiempo=Retroceder(frecuencia,dutycycle,TiempoDeGiro);		// Retroceder el robot
-		rely=rely-tiempo*distanciaRetroceder*_16MHz_1clock;							// DistanciaAvanzar es la distancia que corre por unidad de tiempo
+		relx=relx-tiempo*distanciaAvanzar*_16MHz_1clock*cos(angulo);// DistanciaAvanzar es la distancia que corre por unidad de tiempo
+		rely=rely-tiempo*distanciaAvanzar*_16MHz_1clock*sin(angulo);// Los 2 ejes		break;
 		break;
 		case 0x41:		// Girar Izquierda AA
 		case 0x61:
 			tiempo=GirarIzquierda(frecuencia,dutycycle,TiempoDeGiro);	// Girar hacia la izquierda
+			angulo+=15;	// cada mini giro es 15 grados
 			// Gira sobre su propio eje
 			break;
 		case 0x44:
 		case 0x64:		// Girar Derecha dd
 			tiempo=GirarDerecha(frecuencia,dutycycle,TiempoDeGiro);		// Girar hacia la derecha
-			//
+			angulo-=15;
 			break;
 		default:
 			tiempo=DetenerTodo();										// Caso contrario detener all
