@@ -20,14 +20,41 @@ void config_pulsadores_led(void){ //Configuramos puerto F
 void main(void) {
     config_pulsadores_led();
     uint32_t contador=0;
+    uint32_t n=0;
     
     while (1)
     {
-        while ()
+        while (contador>100000)
+        {
+            if (GPIO_PORTF_DATA_R&0x10==0x10)//cuando presione
+            {
+                while(GPIO_PORTF_DATA_R&0x10!=0x10);//Mientras este sin soltar
+                n++; // aumentar contador de pulsos
+                contador=0;
+            }
             
+            if (GPIO_PORTF_DATA_R&0x01==0x01) //Sw2 presionado sin soltar
+            {
+                while (GPIO_PORTF_DATA_R&0x01!=0x01); // mientras SW2 este sin soltar
+                n++;
+                contador=0;
+            }
+            
+            contador++; // aumentar ciclo de chequeo
+        }//Fin de espera de pulsacion de algun switch 1 o 2
+        contador=0;
+        //Ahora vamos a mostrar los pulsos de leds
+        for (int i=0;i=n;i++) // Este for va a prender N veces amarillo
+        {
+        for (int j=0;j<400000;j++); // espera de tiempo similar a 1 seg
+        GPIO_PORTF_DATA_R=(amarillo);
+        for (int j=0;j<400000;j++); // espera de tiempo similar a 1 seg
+        GPIO_PORTF_DATA_R&=~0xFF; // apagar todos los leds
+        }
         
-        
-    }
+
+              
+    }//fin while 1
 
     
 } // fin main()
